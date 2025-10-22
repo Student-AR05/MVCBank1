@@ -1,0 +1,24 @@
+@{
+    ViewBag.Title = "Loan - Foreclose";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<h2>Foreclose Loan</h2>
+
+@if (!string.IsNullOrEmpty(ViewBag.SuccessMessage))
+{
+    <div class="alert alert-success">@ViewBag.SuccessMessage</div>
+}
+
+@Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+<form method="post" action="@Url.Action("Withdraw", "LoanEmployee")">
+    @Html.AntiForgeryToken()
+
+    <div class="mb-3" style="max-width:400px;">
+        <label class="form-label">Loan Account ID (LN...)</label>
+        <input type="text" name="accountId" class="form-control" placeholder="LN00001" />
+    </div>
+
+    <button type="submit" class="btn btn-danger">Foreclose Loan</button>
+</form>

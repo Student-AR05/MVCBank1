@@ -1,0 +1,55 @@
+@{
+    ViewBag.Title = "Manager - Add Employee";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+    var depts = ViewBag.Departments as List<MVCBank.Models.Department>;
+}
+
+<h2>Add Employee</h2>
+
+@if (!string.IsNullOrEmpty(ViewBag.SuccessMessage))
+{
+    <div class="alert alert-success">@ViewBag.SuccessMessage</div>
+}
+
+@if (ViewBag.CreatedEmpID != null)
+{
+    <div class="alert alert-success">
+        Employee created. ID: <strong>@ViewBag.CreatedEmpID</strong> Password: <strong>@ViewBag.CreatedEmpPassword</strong>
+    </div>
+}
+
+@Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+<form method="post" action="@Url.Action("AddEmployee", "Manager")">
+    @Html.AntiForgeryToken()
+    <div class="mb-3" style="max-width:500px;">
+        <label class="form-label">Name</label>
+        <input type="text" name="EmpName" class="form-control" required />
+    </div>
+
+    <div class="mb-3" style="max-width:300px;" id="deptSelector">
+        <label class="form-label">Department</label>
+        <select name="DeptID" class="form-control">
+            <option value="">-- Select Department --</option>
+            @if (depts != null)
+            {
+                foreach (var d in depts)
+                {
+                    <option value="@d.DeptID">@d.DeptName (@d.DeptID)</option>
+                }
+            }
+        </select>
+    </div>
+
+    <div class="mb-3" style="max-width:300px;">
+        <label class="form-label">PAN</label>
+        <input type="text" name="PAN" class="form-control" />
+    </div>
+
+    <div class="mb-3" style="max-width:300px;">
+        <label class="form-label">Password (optional)</label>
+        <input type="text" name="Password" class="form-control" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create Employee</button>
+</form>

@@ -1,0 +1,8 @@
+@{
+    ViewBag.Title = "Manager Home";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<h2>Manager Home</h2>
+<p>Welcome, @Session["UserName"] (@Session["UserID"]).</p>
+<p>Your role: @Session["Role"]</p>

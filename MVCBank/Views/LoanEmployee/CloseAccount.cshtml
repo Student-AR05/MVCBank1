@@ -1,0 +1,23 @@
+@{
+    ViewBag.Title = "Loan - Close Account";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<h2>Close Loan Account</h2>
+
+@if (!string.IsNullOrEmpty(ViewBag.SuccessMessage))
+{
+    <div class="alert alert-success">@ViewBag.SuccessMessage</div>
+}
+
+@Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+<form method="post" action="@Url.Action("CloseAccount", "LoanEmployee")">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="accountType" value="LOAN" />
+    <div class="mb-3" style="max-width:400px;">
+        <label class="form-label">Account ID</label>
+        <input type="text" name="accountId" class="form-control" placeholder="Enter LNAccountID e.g. LN00001" />
+    </div>
+    <button type="submit" class="btn btn-danger">Close Loan Account</button>
+</form>

@@ -1,0 +1,42 @@
+@{
+    ViewBag.Title = "Open Fixed Deposit";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<h2>Open Fixed Deposit</h2>
+
+@Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+<form method="post" action="@Url.Action("OpenFD", "Customer")">
+    @Html.AntiForgeryToken()
+    <div class="mb-3" style="max-width:400px;">
+        <label class="form-label">Deposit Amount (Rs.)</label>
+        <input type="number" name="fdAmount" step="0.01" class="form-control" />
+    </div>
+
+    <div class="mb-3" style="max-width:400px;">
+        <label class="form-label">Duration (months)</label>
+        <input type="number" name="fdDurationMonths" class="form-control" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Open FD</button>
+</form>
+
+@if (ViewBag.SuccessMessage != null)
+{
+    <div class="alert alert-success mt-3">@ViewBag.SuccessMessage</div>
+}
+
+@if (ViewBag.FDAccountID != null)
+{
+    <div class="card mt-3" style="max-width:700px;">
+        <div class="card-body">
+            <h5 class="card-title">FD Created</h5>
+            <p><strong>Account ID:</strong> @ViewBag.FDAccountID</p>
+            <p><strong>Deposit Amount:</strong> @String.Format("{0:C2}", (decimal)(ViewBag.DepositAmount ?? 0m))</p>
+            <p><strong>Duration (months):</strong> @ViewBag.DurationMonths</p>
+            <p><strong>Rate of Interest (%):</strong> @ViewBag.ROI</p>
+            <p><strong>Maturity Amount:</strong> @String.Format("{0:C2}", (decimal)ViewBag.MaturityAmount)</p>
+        </div>
+    </div>
+}

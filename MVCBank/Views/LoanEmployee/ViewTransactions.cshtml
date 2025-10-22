@@ -1,0 +1,63 @@
+@{
+    ViewBag.Title = "Loan - View Transactions";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<h2>View Loan Transactions</h2>
+
+@Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+<form method="post" action="@Url.Action("ViewTransactions", "LoanEmployee")">
+    @Html.AntiForgeryToken()
+
+    @* fixed account type for loan employee *@
+    <input type="hidden" name="accountType" value="LOAN" />
+
+    <div class="mb-3" style="max-width:400px;">
+        <label class="form-label">Loan Account ID</label>
+        <input type="text" name="accountId" class="form-control" placeholder="Enter LNAccountID e.g. LN00001" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Load Transactions</button>
+</form>
+
+@if (ViewBag.Transactions != null)
+{
+    <h4 class="mt-4">Transactions for LOAN - @((ViewBag.Account != null) ? ViewBag.Account.LNAccountID : "")</h4>
+
+    var txns = ViewBag.Transactions as IEnumerable<dynamic>;
+    if (txns.Any())
+    {
+        <table class="table table-striped mt-2">
+            <thead>
+                <tr>
+                    <th>EMI Due Date</th>
+                    <th>Paid Date</th>
+                    <th>Amount</th>
+                    <th>Outstanding</th>
+                    <th>Penalty</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var t in txns)
+            {
+                <tr>
+                    <td>@(t.EMIDate_Actual?.ToString("yyyy-MM-dd") ?? "")</td>
+                    <td>@(t.EMIDate_Paid?.ToString("yyyy-MM-dd") ?? "")</td>
+                    <td>@String.Format("{0:N2}", t.Amount)</td>
+                    <td>@String.Format("{0:N2}", t.Outstanding)</td>
+                    <td>@(t.LatePenalty != null ? String.Format("{0:N2}", t.LatePenalty) : "")</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <div class="alert alert-info mt-3">No transactions found for this account.</div>
+    }
+}
+else if (!String.IsNullOrEmpty(ViewBag.SuccessMessage))
+{
+    <div class="alert alert-success mt-3">@ViewBag.SuccessMessage</div>
+}

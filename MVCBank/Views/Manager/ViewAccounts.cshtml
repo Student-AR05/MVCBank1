@@ -1,0 +1,61 @@
+@model IEnumerable<MVCBank.Models.ViewModels.AccountListItemViewModel>
+@{
+    ViewBag.Title = "All Accounts";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<h2>All Accounts</h2>
+
+<div class="row">
+    <div class="col-md-12">
+        <form method="get" action="@Url.Action("ViewAccounts", "Manager")" class="form-inline">
+            <div class="form-group">
+                <label for="accountType">Type:</label>
+                <select id="accountType" name="accountType" class="form-control">
+                    @{ var sel = (ViewBag.AccountTypeSel as string ?? "ALL").ToUpperInvariant(); }
+                    <option value="ALL" @(sel=="ALL"?"selected":"")>All</option>
+                    <option value="SAVINGS" @(sel=="SAVINGS"?"selected":"")>Savings</option>
+                    <option value="FD" @(sel=="FD"?"selected":"")>Fixed Deposit</option>
+                    <option value="LOAN" @(sel=="LOAN"?"selected":"")>Loan</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin-left:10px;">
+                <label for="q">Search:</label>
+                <input type="text" id="q" name="q" value="@ViewBag.Query" class="form-control" placeholder="Account ID or Customer ID" />
+            </div>
+            <button type="submit" class="btn btn-primary" style="margin-left:10px;">Search</button>
+            <a href="@Url.Action("ViewAccounts","Manager")" class="btn btn-default" style="margin-left:5px;">Clear</a>
+        </form>
+    </div>
+</div>
+
+<hr />
+
+@if (Model == null || !Model.Any())
+{
+    <div class="alert alert-info">No accounts found.</div>
+}
+else
+{
+    <table class="table table-striped table-bordered">
+        <thead>
+            <tr>
+                <th>Account ID</th>
+                <th>Customer ID</th>
+                <th>Status</th>
+                <th>@Model.First().Col1</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@item.Id</td>
+                <td>@item.CustomerID</td>
+                <td>@item.Status</td>
+                <td>@(item.Val1.HasValue ? String.Format("{0:C2}", item.Val1.Value) : "")</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}

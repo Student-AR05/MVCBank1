@@ -1,0 +1,18 @@
+@{
+    ViewBag.Title = "Employee Home";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<h2>Employee Home</h2>
+<p>Welcome, @Session["UserName"] (@Session["UserID"]).</p>
+<p>Your role: @Session["Role"]</p>
+
+<div class="mt-4">
+    <a class="btn btn-primary me-2" href="@Url.Action("Dashboard", "Employee")">Go to Department Dashboard</a>
+    <a class="btn btn-secondary me-2" href="@Url.Action("Index", "SavingEmployee")">Savings Dashboard</a>
+    <a class="btn btn-secondary" href="@Url.Action("Index", "LoanEmployee")">Loan Dashboard</a>
+</div>
+
+<div class="mt-3">
+    <a class="btn btn-success" href="@Url.Action("AddAccount", "SavingEmployee")">Add Savings Account (direct)</a>
+</div>

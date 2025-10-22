@@ -1,0 +1,87 @@
+@{
+    ViewBag.Title = "Savings - Add Account";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+    var customers = ViewBag.Customers as List<MVCBank.Models.Customer>;
+}
+
+<h2>Add Savings Account</h2>
+
+@if (!string.IsNullOrEmpty(ViewBag.SuccessMessage))
+{
+    <div class="alert alert-success">@ViewBag.SuccessMessage</div>
+}
+
+@if (ViewBag.CreatedAccountID != null)
+{
+    <div class="alert alert-info">Created Account ID: <strong>@ViewBag.CreatedAccountID</strong></div>
+}
+
+@if (ViewBag.NewCustomerPassword != null)
+{
+    <div class="alert alert-info">New Customer Password: <strong>@ViewBag.NewCustomerPassword</strong></div>
+}
+
+@Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+<form method="post" action="@Url.Action("AddAccount", "SavingEmployee")">
+    @Html.AntiForgeryToken()
+
+    <div class="mb-3" style="max-width:300px;">
+        <label class="form-label">Customer</label>
+        <select name="customerOption" id="customerOption" class="form-control">
+            <option value="EXISTING">Existing Customer</option>
+            <option value="NEW">New Customer</option>
+        </select>
+    </div>
+
+    <div id="existingBlock">
+        <div class="mb-3" style="max-width:400px;">
+            <label class="form-label">Select Customer</label>
+            <select name="ExistingCustomerID" class="form-control">
+                <option value="">-- Select --</option>
+                @if (customers != null)
+                {
+                    foreach (var c in customers)
+                    {
+                        <option value="@c.CustID">@c.CustName (@c.CustID)</option>
+                    }
+                }
+            </select>
+        </div>
+    </div>
+
+    <div id="newBlock" style="display:none;">
+        <h5>New Customer Details</h5>
+        <div class="mb-3" style="max-width:500px;"><label>Name</label><input type="text" name="New_CustName" class="form-control" /></div>
+        <div class="mb-3" style="max-width:300px;"><label>DOB</label><input type="date" name="New_DOB" class="form-control" /></div>
+        <div class="mb-3" style="max-width:300px;"><label>PAN</label><input type="text" name="New_PAN" class="form-control" /></div>
+        <div class="mb-3" style="max-width:300px;"><label>Phone</label><input type="text" name="New_PhoneNumber" class="form-control" /></div>
+        <div class="mb-3"><label>Gender</label><br /><label><input type="radio" name="New_Gender" value="true" /> Male</label> <label class="ms-3"><input type="radio" name="New_Gender" value="false" /> Female</label></div>
+        <div class="mb-3"><label>Address</label><textarea name="New_Address" class="form-control"></textarea></div>
+        <div class="mb-3" style="max-width:300px;"><label>Password (optional)</label><input type="text" name="New_Password" class="form-control" /></div>
+    </div>
+
+    <hr />
+
+    <div id="savingsFields">
+        <div class="mb-3" style="max-width:300px;"><label>Initial Deposit</label><input type="number" step="0.01" min="0" name="initialDeposit" class="form-control" required /></div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create Savings Account</button>
+</form>
+
+<script>
+    (function(){
+        var opt = document.getElementById('customerOption');
+        var existing = document.getElementById('existingBlock');
+        var nblock = document.getElementById('newBlock');
+
+        function toggleCustomer(){
+            if(opt.value === 'EXISTING'){ existing.style.display = ''; nblock.style.display = 'none'; }
+            else { existing.style.display = 'none'; nblock.style.display = ''; }
+        }
+
+        opt.addEventListener('change', toggleCustomer);
+        toggleCustomer();
+    })();
+</script>

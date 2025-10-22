@@ -1,0 +1,60 @@
+﻿@{
+    ViewBag.Title = "Login";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<h2 class="mb-4">Login</h2>
+
+<form method="post" action="@Url.Action("Login", "Auth")">
+    <div class="mb-3">
+        <label for="RoleType">Select Role</label>
+        <select name="RoleType" class="form-control" id="roleSelect">
+            <option value="CUSTOMER">Customer</option>
+            <option value="EMPLOYEE">Employee</option>
+            <option value="MANAGER">Manager</option>
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label for="UserID">User ID</label>
+        <input type="text" name="UserID" class="form-control" placeholder="Enter your ID" />
+    </div>
+
+    <div class="mb-3">
+        <label for="Password">Password</label>
+        <input type="password" name="Password" class="form-control" placeholder="Enter your password" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Login</button>
+
+    <!-- Register button: visible only when Customer is selected -->
+    <a id="registerBtn" href="@Url.Action("Register", "Auth")" class="btn btn-secondary ms-2" style="display:none;">Register</a>
+
+    @if (ViewBag.Message != null)
+    {
+        <div class="alert alert-danger mt-3">@ViewBag.Message</div>
+    }
+</form>
+
+<script>
+    (function() {
+        var roleSelect = document.getElementById('roleSelect');
+        var registerBtn = document.getElementById('registerBtn');
+
+        function toggleRegister() {
+            if (!roleSelect || !registerBtn) return;
+            if (roleSelect.value === 'CUSTOMER') {
+                registerBtn.style.display = '';
+            } else {
+                registerBtn.style.display = 'none'; 
+            }
+        }
+
+        if (roleSelect) {
+            roleSelect.addEventListener('change', toggleRegister);
+        }
+
+        // initial state
+        toggleRegister();
+    })();
+</script>

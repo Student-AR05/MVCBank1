@@ -1,0 +1,39 @@
+@model MVCBank.Models.ViewModels.CustomerDashboardViewModel
+@{
+    ViewBag.Title = "Customer Dashboard";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<h2>My Accounts</h2>
+
+<div class="mb-3" style="max-width:700px;">
+    <div class="d-flex" style="gap:10px; margin-bottom:15px;">
+        <a class="btn btn-success" href="@Url.Action("OpenSavings", "Customer")">Open Savings Account</a>
+        <a class="btn btn-info" href="@Url.Action("OpenFD", "Customer")">Open Fixed Deposit</a>
+        <a class="btn btn-warning" href="@Url.Action("ApplyLoan", "Customer")">Apply for Loan</a>
+        <a class="btn btn-primary" href="@Url.Action("Transactions", "Customer")">Transactions</a>
+    </div>
+</div>
+
+@if (Model != null && Model.SavingsAccount != null)
+{
+    <div class="card mb-3" style="max-width:700px;">
+        <div class="card-body">
+            <h5 class="card-title">Savings Account: @Model.SavingsAccount.SBAccountID</h5>
+            <p class="card-text">Balance: @String.Format("{0:C2}", Model.SavingsAccount.Balance)</p>
+            <p class="card-text">Status: @Model.SavingsAccount.Status</p>
+
+            <div class="d-flex" style="gap:10px;">
+                <a class="btn btn-primary" href="@Url.Action("ViewTransactions", "SavingEmployee")">View Transactions (Savings)</a>
+                <a class="btn btn-secondary" href="@Url.Action("Settings", "Customer")">Settings</a>
+            </div>
+        </div>
+    </div>
+
+    <h3>Recent Transactions</h3>
+    @Html.Partial("~/Views/Shared/_TransactionsTable.cshtml", Model.Transactions)
+}
+else
+{
+    <div class="alert alert-warning">You don't have a savings account yet. You can open one using the buttons above.</div>
+}

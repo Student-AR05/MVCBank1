@@ -1,0 +1,89 @@
+@{
+    ViewBag.Title = "Open Account";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<h2>Open an Account</h2>
+
+@if (TempData["Message"] != null)
+{
+    <div class="alert alert-info">@TempData["Message"]</div>
+}
+
+<div class="mb-3" style="max-width:600px;">
+    <label class="form-label">Select Account Type</label>
+    <select id="accountType" class="form-control">
+        <option value="SAVINGS">Savings Account</option>
+        <option value="FD">Fixed Deposit</option>
+        <option value="LOAN">Loan Account</option>
+    </select>
+</div>
+
+<form method="post" action="@Url.Action("OpenAccount", "Customer")">
+    @Html.AntiForgeryToken()
+
+    <div id="savingsForm" class="account-form">
+        <h4>Savings Account</h4>
+        <div class="mb-3">
+            <label for="initialDeposit" class="form-label">Initial Deposit (minimum 1000)</label>
+            <input type="number" step="0.01" min="1000" name="initialDeposit" class="form-control" id="initialDeposit" />
+        </div>
+    </div>
+
+    <div id="fdForm" class="account-form" style="display:none;">
+        <h4>Fixed Deposit</h4>
+        <div class="mb-3">
+            <label for="fdAmount" class="form-label">Deposit Amount (minimum 10000)</label>
+            <input type="number" step="0.01" min="10000" name="fdAmount" class="form-control" id="fdAmount" />
+        </div>
+        <div class="mb-3">
+            <label for="fdDuration" class="form-label">Duration (months)</label>
+            <input type="number" min="1" name="fdDuration" class="form-control" id="fdDuration" />
+        </div>
+        <div class="mb-3">
+            <label for="fdROI" class="form-label">Interest Rate (e.g. 6.5)</label>
+            <input type="number" step="0.01" min="0" name="fdROI" class="form-control" id="fdROI" />
+        </div>
+    </div>
+
+    <div id="loanForm" class="account-form" style="display:none;">
+        <h4>Loan Account</h4>
+        <div class="mb-3">
+            <label for="loanAmount" class="form-label">Loan Amount (minimum 10000)</label>
+            <input type="number" step="0.01" min="10000" name="loanAmount" class="form-control" id="loanAmount" />
+        </div>
+        <div class="mb-3">
+            <label for="loanTenure" class="form-label">Tenure (months)</label>
+            <input type="number" min="1" name="loanTenure" class="form-control" id="loanTenure" />
+        </div>
+        <div class="mb-3">
+            <label for="loanROI" class="form-label">Interest Rate (e.g. 10.5)</label>
+            <input type="number" step="0.01" min="0" name="loanROI" class="form-control" id="loanROI" />
+        </div>
+    </div>
+
+    <input type="hidden" name="accountTypeSelected" id="accountTypeSelected" value="SAVINGS" />
+    <br />
+    <button type="submit" class="btn btn-primary">Submit</button>
+</form>
+
+<script>
+    (function(){
+        var sel = document.getElementById('accountType');
+        var savings = document.getElementById('savingsForm');
+        var fd = document.getElementById('fdForm');
+        var loan = document.getElementById('loanForm');
+        var hidden = document.getElementById('accountTypeSelected');
+
+        function toggle(){
+            var v = sel.value;
+            savings.style.display = v === 'SAVINGS' ? '' : 'none';
+            fd.style.display = v === 'FD' ? '' : 'none';
+            loan.style.display = v === 'LOAN' ? '' : 'none';
+            hidden.value = v;
+        }
+
+        sel.addEventListener('change', toggle);
+        toggle();
+    })();
+</script>

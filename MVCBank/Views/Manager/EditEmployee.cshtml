@@ -1,0 +1,34 @@
+@model MVCBank.Models.ViewModels.EmployeeEditViewModel
+@{
+    ViewBag.Title = "Edit Employee";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<h2>Edit Employee</h2>
+
+@if (ViewBag.SuccessMessage != null)
+{
+    <div class="alert alert-success">@ViewBag.SuccessMessage</div>
+}
+
+@Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.EmpID)
+    <div class="mb-3">
+        @Html.LabelFor(m => m.EmpName, new { @class = "form-label" })
+        @Html.TextBoxFor(m => m.EmpName, new { @class = "form-control" })
+    </div>
+    <div class="mb-3">
+        @Html.LabelFor(m => m.DeptID, new { @class = "form-label" })
+        @Html.TextBoxFor(m => m.DeptID, new { @class = "form-control" })
+    </div>
+    <div class="mb-3">
+        @Html.LabelFor(m => m.PAN, new { @class = "form-label" })
+        @Html.TextBoxFor(m => m.PAN, new { @class = "form-control" })
+    </div>
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+    <a href="@Url.Action("RemoveEmployee", "Manager")" class="btn btn-secondary">Back</a>
+}

@@ -1,0 +1,51 @@
+﻿@model MVCBank.Models.Customer
+
+@{
+    ViewBag.Title = "Customer Registration";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<h2 class="mb-4">Register as Customer</h2>
+
+<form method="post" action="@Url.Action("Register", "Auth")">
+    <div style="width:300px">
+        @Html.LabelFor(c => c.CustName)
+        @Html.TextBoxFor(c => c.CustName, new { @class = "form-control", id = "custName" })
+
+        @Html.Label("CustPassword", "Password")
+        @Html.Password("PlainPassword", null, new { @class = "form-control", id = "password" })
+
+        @Html.LabelFor(c => c.DOB)
+        @Html.TextBoxFor(c => c.DOB, new { @type = "date", @class = "form-control", id = "dob" })
+
+        @Html.LabelFor(c => c.PAN)
+        @Html.TextBoxFor(c => c.PAN, new { @class = "form-control", id = "pan", maxlength = "8", pattern = "[A-Z]{4}[0-9]{4}", title = "Format: AAAA1234" })
+
+        @Html.LabelFor(c => c.PhoneNumber)
+        @Html.TextBoxFor(c => c.PhoneNumber, new { @class = "form-control", id = "phone" })
+
+        @Html.LabelFor(c => c.Gender)
+        <div>
+            <label><input type="radio" name="Gender" value="true" /> Male</label>
+            <label><input type="radio" name="Gender" value="false" /> Female</label>
+        </div>
+
+        @Html.LabelFor(c => c.Address)
+        @Html.TextBoxFor(c => c.Address, new { @class = "form-control", id = "address" })
+
+        <br />
+        <input type="submit" value="Register" class="btn btn-primary" />
+    </div>
+
+    @if (ViewBag.Message != null)
+    {
+        <div class="alert alert-info mt-3">@ViewBag.Message</div>
+    }
+
+    @if (ViewBag.CustID != null)
+    {
+        <div class="alert alert-success mt-2">
+            Your Customer ID is <strong>@ViewBag.CustID</strong>
+        </div>
+    }
+</form>

@@ -1,0 +1,80 @@
+@model dynamic
+@{
+    ViewBag.Title = "Savings Employee Dashboard";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<style>
+    .kpi-card {
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        padding: 18px 20px;
+        color: #333;
+        background: #fff;
+        transition: transform .1s ease, box-shadow .1s ease;
+        height: 120px;
+    }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.12); }
+    .kpi-title { font-size: 13px; text-transform: uppercase; color: #6c757d; letter-spacing: .5px; }
+    .kpi-value { font-size: 28px; font-weight: 700; margin-top: 6px; }
+    .kpi-sub { font-size: 12px; color: #8a8f94; }
+    .kpi-accent-1 { border-left: 6px solid #0d6efd; }
+    .kpi-accent-2 { border-left: 6px solid #20c997; }
+    .kpi-accent-3 { border-left: 6px solid #ffc107; }
+    .kpi-accent-4 { border-left: 6px solid #dc3545; }
+    .card { border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+    .card-header { background: #f8f9fa; font-weight: 600; }
+</style>
+
+<h2 class="mb-4">Savings Employee Dashboard</h2>
+<div class="text-muted mb-3">As of @DateTime.Now.ToString("dd MMM yyyy, HH:mm")</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-4">
+        <div class="kpi-card kpi-accent-1">
+            <div class="kpi-title">Active Savings Accounts</div>
+            <div class="kpi-value">@ViewBag.ActiveSavingsAccounts</div>
+            <div class="kpi-sub">Total Balance: @ViewBag.TotalSavingsBalance?.ToString("C0")</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-4">
+        <div class="kpi-card kpi-accent-2">
+            <div class="kpi-title">Active FD Accounts</div>
+            <div class="kpi-value">@ViewBag.ActiveFDAccounts</div>
+            <div class="kpi-sub">Total FD Deposits: @ViewBag.TotalFDDeposits?.ToString("C0")</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-4">
+        <div class="kpi-card kpi-accent-4">
+            <div class="kpi-title">Pending Requests</div>
+            <div class="kpi-value">@ViewBag.PendingAccounts</div>
+            <div class="kpi-sub">Accounts awaiting approval</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">Manage Accounts</div>
+            <div class="list-group list-group-flush">
+                <a class="list-group-item list-group-item-action" href="@Url.Action("OpenAccount", "SavingEmployee")">Open Savings Account</a>
+                <a class="list-group-item list-group-item-action" href="@Url.Action("OpenAccount", "SavingEmployee", new { accountType = "FD" })">Open FD Account</a>
+                <a class="list-group-item list-group-item-action" href="@Url.Action("CloseAccount", "SavingEmployee")">Close Account</a>
+                <a class="list-group-item list-group-item-action" href="@Url.Action("Deposit", "SavingEmployee")">Deposit</a>
+                <a class="list-group-item list-group-item-action" href="@Url.Action("Withdraw", "SavingEmployee")">Withdraw</a>
+                <a class="list-group-item list-group-item-action" href="@Url.Action("ViewTransactions", "SavingEmployee")">View Transactions</a>
+                <a class="list-group-item list-group-item-action" href="@Url.Action("PendingRequests", "SavingEmployee")">Pending Requests</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">Manage Customers</div>
+            <div class="list-group list-group-flush">
+                <a class="list-group-item list-group-item-action" href="@Url.Action("OpenAccount", "SavingEmployee")">Add Customer (via Open Account)</a>
+                <a class="list-group-item list-group-item-action" href="@Url.Action("RemoveCustomer", "Manager")">Edit / Remove Customer</a>
+            </div>
+        </div>
+    </div>
+</div>

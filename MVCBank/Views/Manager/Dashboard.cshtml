@@ -1,0 +1,126 @@
+@model MVCBank.Models.ViewModels.ManagerDashboardViewModel
+@{
+    ViewBag.Title = "Manager Dashboard";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<style>
+    .kpi-card {
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        padding: 18px 20px;
+        color: #333;
+        background: #fff;
+        transition: transform .1s ease, box-shadow .1s ease;
+        height: 120px;
+    }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.12); }
+    .kpi-title { font-size: 13px; text-transform: uppercase; color: #6c757d; letter-spacing: .5px; }
+    .kpi-value { font-size: 28px; font-weight: 700; margin-top: 6px; }
+    .kpi-sub { font-size: 12px; color: #8a8f94; }
+    .kpi-accent-1 { border-left: 6px solid #0d6efd; }
+    .kpi-accent-2 { border-left: 6px solid #20c997; }
+    .kpi-accent-3 { border-left: 6px solid #ffc107; }
+    .kpi-accent-4 { border-left: 6px solid #dc3545; }
+
+    .card { border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+    .card-header { background: #f8f9fa; font-weight: 600; }
+</style>
+
+<h2 class="mb-4">Manager Dashboard</h2>
+<div class="text-muted mb-3">As of @Model.AsOf.ToString("dd MMM yyyy, HH:mm")</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+        <div class="kpi-card kpi-accent-1">
+            <div class="kpi-title">Total Customers</div>
+            <div class="kpi-value">@Model.TotalCustomers</div>
+            <div class="kpi-sub">Active accounts: @Model.ActiveSavingsAccounts SB, @Model.ActiveFDAccounts FD</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="kpi-card kpi-accent-2">
+            <div class="kpi-title">Employees</div>
+            <div class="kpi-value">@Model.TotalEmployees</div>
+            <div class="kpi-sub">Managers: @Model.ManagersCount</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="kpi-card kpi-accent-3">
+            <div class="kpi-title">Loans</div>
+            <div class="kpi-value">@Model.ActiveLoanAccounts</div>
+            <div class="kpi-sub">Principal: @Model.TotalLoanPrincipal.ToString("C0")</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="kpi-card kpi-accent-4">
+            <div class="kpi-title">Pending Requests</div>
+            <div class="kpi-value">@Model.PendingAccounts</div>
+            <div class="kpi-sub">Accounts awaiting approval</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">Manage Customers</div>
+            <div class="list-group list-group-flush">
+                <a class="list-group-item list-group-item-action" href="@Url.Action("OpenAccount", "Manager")">Add Customer (via Open Account)</a>
+                <a class="list-group-item list-group-item-action" href="@Url.Action("RemoveCustomer", "Manager")">Edit / Remove Customer</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">Manage Employees</div>
+            <div class="list-group list-group-flush">
+                <a class="list-group-item list-group-item-action" href="@Url.Action("AddEmployee", "Manager")">Add Employee</a>
+                <a class="list-group-item list-group-item-action" href="@Url.Action("RemoveEmployee", "Manager")">Edit / Remove Employee</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">Manage Accounts</div>
+            <div class="list-group list-group-flush">
+                <a class="list-group-item list-group-item-action" href="@Url.Action("OpenAccount", "Manager")">Open Account</a>
+                <a class="list-group-item list-group-item-action" href="@Url.Action("CloseAccount", "Manager")">Close Account</a>
+                <a class="list-group-item list-group-item-action" href="@Url.Action("ViewAccounts", "Manager")">View All Accounts</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card mb-4">
+            <div class="card-header">Quick Actions</div>
+            <div class="list-group list-group-flush">
+                <a class="list-group-item list-group-item-action" href="@Url.Action("OpenAccount", "Manager")">Open Account</a>
+                <a class="list-group-item list-group-item-action" href="@Url.Action("CloseAccount", "Manager")">Close Account</a>
+                <a class="list-group-item list-group-item-action" href="@Url.Action("PendingRequests", "Manager")">Pending Requests</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card mb-4">
+            <div class="card-header">Portfolio Summary</div>
+            <div class="list-group list-group-flush">
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>Total Savings Balance</span>
+                    <span class="badge bg-primary">@Model.TotalSavingsBalance.ToString("C0")</span>
+                </div>
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>Total FD Deposits</span>
+                    <span class="badge bg-success">@Model.TotalFDDeposits.ToString("C0")</span>
+                </div>
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>Total Loan Principal</span>
+                    <span class="badge bg-warning text-dark">@Model.TotalLoanPrincipal.ToString("C0")</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,16 @@
+@{
+    ViewBag.Title = "Loan Employee Dashboard";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<h2>Loan Department</h2>
+
+<p>Welcome to the loan employee dashboard. Use the actions below:</p>
+
+<div class="list-group" style="max-width:600px;">
+    <a class="list-group-item list-group-item-action" href="@Url.Action("AddAccount", "LoanEmployee")">Add Account</a>
+    <a class="list-group-item list-group-item-action" href="@Url.Action("CloseAccount", "LoanEmployee")">Close Account</a>
+    <a class="list-group-item list-group-item-action" href="@Url.Action("Deposit", "LoanEmployee")">Receive Payment</a>
+    <a class="list-group-item list-group-item-action" href="@Url.Action("Withdraw", "LoanEmployee")">Disburse Loan</a>
+    <a class="list-group-item list-group-item-action" href="@Url.Action("ViewTransactions", "LoanEmployee")">View Transactions</a>
+</div>

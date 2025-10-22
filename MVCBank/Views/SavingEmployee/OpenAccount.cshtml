@@ -1,0 +1,247 @@
+@{
+    ViewBag.Title = "Savings Employee - Open Account";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+    var customers = ViewBag.Customers as List<MVCBank.Models.Customer>;
+    var selectedType = Request["accountType"] as string ?? "SAVINGS";
+}
+
+<h2>Open Account</h2>
+
+@if (!string.IsNullOrEmpty(ViewBag.SuccessMessage))
+{
+    <div class="alert alert-success">@ViewBag.SuccessMessage</div>
+}
+
+@if (ViewBag.CreatedAccountID != null)
+{
+    <div class="alert alert-info">Created Account ID: <strong>@ViewBag.CreatedAccountID</strong></div>
+}
+@if (ViewBag.FDMaturityAmount != null)
+{
+    <div class="alert alert-info">Maturity Amount: <strong>@ViewBag.FDMaturityAmount</strong> | ROI: <strong>@ViewBag.FDROI</strong>% | Maturity Date: <strong>@ViewBag.FDMaturityDate</strong></div>
+}
+@if (ViewBag.NewCustomerPassword != null)
+{
+    <div class="alert alert-info">New Customer Password: <strong>@ViewBag.NewCustomerPassword</strong></div>
+}
+
+@Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+<form method="post" action="@Url.Action("OpenAccount", "SavingEmployee")" id="openAccountForm">
+    @Html.AntiForgeryToken()
+    <div class="mb-3" style="max-width:300px;">
+        <label class="form-label">Customer</label>
+        <select name="customerOption" id="customerOption" class="form-control">
+            <option value="EXISTING">Existing Customer</option>
+            <option value="NEW">New Customer</option>
+        </select>
+    </div>
+
+    <div id="existingBlock">
+        <div class="mb-3 d-flex" style="max-width:400px; gap:8px;">
+            <div style="flex:1;">
+                <label class="form-label">Search Customer</label>
+                <input type="text" id="customerSearch" class="form-control" placeholder="Type name, id or PAN" />
+            </div>
+            <div style="width:90px; align-self:end;">
+                <button type="button" id="customerSearchBtn" class="btn btn-secondary" style="width:100%; margin-bottom:0.5rem;">Search</button>
+            </div>
+        </div>
+        <div class="mb-3" style="max-width:400px;">
+            <label class="form-label">Select Customer</label>
+            <select name="ExistingCustomerID" id="ExistingCustomerID" class="form-control">
+                <option value="">-- Select --</option>
+                @if (customers != null)
+                {
+                    foreach (var c in customers)
+                    {
+                        <option value="@c.CustID" data-dob="@c.DOB.ToString("yyyy-MM-dd")">@c.CustName (@c.CustID)</option>
+                    }
+                }
+            </select>
+            <div id="customerSearchStatus" style="margin-top:6px; font-size:0.9rem; color:#666"></div>
+        </div>
+    </div>
+
+    <div id="newBlock" style="display:none;">
+        <h5>New Customer Details</h5>
+        <div class="mb-3" style="max-width:500px;"><label>Name</label><input type="text" name="New_CustName" class="form-control" /></div>
+        <div class="mb-3" style="max-width:300px;"><label>DOB</label><input type="date" name="New_DOB" id="New_DOB" class="form-control" /></div>
+        <div class="mb-3" style="max-width:300px;"><label>PAN</label><input type="text" name="New_PAN" class="form-control" /></div>
+        <div class="mb-3" style="max-width:300px;"><label>Phone</label><input type="text" name="New_PhoneNumber" class="form-control" /></div>
+        <div class="mb-3"><label>Gender</label><br /><label><input type="radio" name="New_Gender" value="true" /> Male</label> <label class="ms-3"><input type="radio" name="New_Gender" value="false" /> Female</label></div>
+        <div class="mb-3"><label>Address</label><textarea name="New_Address" class="form-control"></textarea></div>
+        <div class="mb-3" style="max-width:300px;"><label>Password (optional)</label><input type="text" name="New_Password" class="form-control" /></div>
+    </div>
+
+    <hr />
+    <div class="mb-3" style="max-width:300px;">
+        <label class="form-label">Account Type</label>
+        <select name="accountType" id="accountType" class="form-control">
+            <option value="SAVINGS" @(selectedType.ToUpper() == "SAVINGS" ? "selected" : "")>Savings</option>
+            <option value="FD" @(selectedType.ToUpper() == "FD" ? "selected" : "")>Fixed Deposit</option>
+        </select>
+    </div>
+
+    <div id="savingsFields">
+        <div class="mb-3" style="max-width:300px;"><label>Initial Deposit</label><input type="number" step="0.01" min="0" name="initialDeposit" class="form-control" /></div>
+    </div>
+
+    <div id="fdFields" style="display:none;">
+        <div class="mb-3" style="max-width:300px;"><label>Deposit Amount</label><input type="number" step="0.01" min="0" name="fdAmount" id="fdAmount" class="form-control" /></div>
+        <div class="mb-3" style="max-width:200px;"><label>Duration (months)</label><input type="number" min="1" name="fdDuration" id="fdDuration" class="form-control" /></div>
+        <div class="mb-3" style="max-width:200px;"><label>ROI (%)</label><input type="number" step="0.01" min="0" name="fdROI" id="fdROI" class="form-control" readonly /></div>
+        <div class="mb-3" style="max-width:300px;">
+            <label>Maturity Amount</label>
+            <input type="text" id="fdMaturityAmount" class="form-control" readonly />
+        </div>
+        <div class="mb-3" style="max-width:300px;">
+            <label>Maturity Date</label>
+            <input type="text" id="fdMaturityDate" class="form-control" readonly />
+        </div>
+        <div class="alert alert-info" id="fdSeniorInfo" style="display:none;max-width:400px;">Senior citizen: 0.5% extra interest applied.</div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create</button>
+</form>
+
+<script>
+(function(){
+    var opt = document.getElementById('customerOption');
+    var existing = document.getElementById('existingBlock');
+    var nblock = document.getElementById('newBlock');
+    var acc = document.getElementById('accountType');
+    var savings = document.getElementById('savingsFields');
+    var fd = document.getElementById('fdFields');
+    var fdAmount = document.getElementById('fdAmount');
+    var fdDuration = document.getElementById('fdDuration');
+    var fdROI = document.getElementById('fdROI');
+    var fdMaturityAmount = document.getElementById('fdMaturityAmount');
+    var fdMaturityDate = document.getElementById('fdMaturityDate');
+    var fdSeniorInfo = document.getElementById('fdSeniorInfo');
+    var existingCustomer = document.getElementById('ExistingCustomerID');
+    var newDOB = document.getElementById('New_DOB');
+
+    function getSelectedDOB() {
+        if(opt.value === 'EXISTING') {
+            var sel = existingCustomer.options[existingCustomer.selectedIndex];
+            return sel && sel.getAttribute('data-dob');
+        } else {
+            return newDOB && newDOB.value;
+        }
+    }
+
+    function getAge(dobStr) {
+        if(!dobStr) return 0;
+        var dob = new Date(dobStr);
+        var today = new Date();
+        var age = today.getFullYear() - dob.getFullYear();
+        var m = today.getMonth() - dob.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+        return age;
+    }
+
+    function calcFD() {
+        var amount = parseFloat(fdAmount.value);
+        var months = parseInt(fdDuration.value);
+        if(isNaN(amount) || isNaN(months) || amount < 10000 || months < 1) {
+            fdROI.value = '';
+            fdMaturityAmount.value = '';
+            fdMaturityDate.value = '';
+            fdSeniorInfo.style.display = 'none';
+            return;
+        }
+        var roi = 0;
+        if(months <= 12) roi = 6.0;
+        else if(months <= 24) roi = 7.0;
+        else roi = 8.0;
+        var dobStr = getSelectedDOB();
+        var age = getAge(dobStr);
+        var isSenior = age >= 60;
+        if(isSenior) {
+            roi += 0.5;
+            fdSeniorInfo.style.display = '';
+        } else {
+            fdSeniorInfo.style.display = 'none';
+        }
+        fdROI.value = roi.toFixed(2);
+        var years = months / 12.0;
+        var maturity = amount * Math.pow(1 + roi/100, years);
+        fdMaturityAmount.value = maturity.toFixed(2);
+        // Maturity date
+        var start = new Date();
+        start.setHours(0,0,0,0);
+        var maturityDate = new Date(start);
+        maturityDate.setMonth(maturityDate.getMonth() + months);
+        fdMaturityDate.value = maturityDate.toISOString().slice(0,10);
+    }
+
+    fdAmount && fdAmount.addEventListener('input', calcFD);
+    fdDuration && fdDuration.addEventListener('input', calcFD);
+    existingCustomer && existingCustomer.addEventListener('change', calcFD);
+    newDOB && newDOB.addEventListener('change', calcFD);
+
+    function toggleCustomer(){
+        if(opt.value === 'EXISTING'){ existing.style.display = ''; nblock.style.display = 'none'; }
+        else { existing.style.display = 'none'; nblock.style.display = ''; }
+        calcFD();
+    }
+    function toggleAccount(){
+        var v = acc.value;
+        savings.style.display = v==='SAVINGS' ? '' : 'none';
+        fd.style.display = v==='FD' ? '' : 'none';
+        calcFD();
+    }
+    opt.addEventListener('change', toggleCustomer);
+    acc.addEventListener('change', toggleAccount);
+    toggleCustomer(); toggleAccount();
+
+    // search support with debounce
+    var search = document.getElementById('customerSearch');
+    var select = document.getElementById('ExistingCustomerID');
+    var searchBtn = document.getElementById('customerSearchBtn');
+    var status = document.getElementById('customerSearchStatus');
+    var timeout = null;
+
+    function doSearch(q){
+        if(!q){
+            select.options.length = 1;
+            var initial = [];
+            @foreach(var c in customers ?? new List<MVCBank.Models.Customer>()){
+                <text>initial.push({ id: '@c.CustID', text: '@c.CustName (@c.CustID)', dob: '@c.DOB.ToString("yyyy-MM-dd")' });</text>
+            }
+            initial.forEach(function(item){
+                var o = document.createElement('option'); o.value = item.id; o.text = item.text; o.setAttribute('data-dob', item.dob); select.appendChild(o);
+            });
+            status.textContent = '';
+            return;
+        }
+        status.textContent = 'Searching...';
+        fetch('@Url.Action("SearchCustomers","Manager")?q='+encodeURIComponent(q))
+            .then(function(r){ if(!r.ok) throw new Error('Network response not ok'); return r.json(); })
+            .then(function(data){
+                select.options.length = 1;
+                var results = data && data.results ? data.results : [];
+                if(results.length === 0){ status.textContent = 'No customers found'; return; }
+                results.forEach(function(item){
+                    var opt = document.createElement('option');
+                    opt.value = item.id;
+                    opt.text = item.text + (item.pan ? ' - ' + item.pan : '');
+                    if(item.dob) opt.setAttribute('data-dob', item.dob);
+                    select.appendChild(opt);
+                });
+                status.textContent = 'Found ' + results.length + ' customer(s).';
+            })
+            .catch(function(err){
+                status.textContent = 'Search failed';
+                console.error(err);
+            });
+    }
+    function scheduleSearch(){
+        clearTimeout(timeout);
+        timeout = setTimeout(function(){ doSearch(search.value.trim()); }, 300);
+    }
+    search.addEventListener('keyup', scheduleSearch);
+    searchBtn.addEventListener('click', function(){ clearTimeout(timeout); doSearch(search.value.trim()); });
+})();
+</script>

@@ -1,0 +1,46 @@
+@model MVCBank.Models.ViewModels.CustomerEditViewModel
+@{
+    ViewBag.Title = "Edit Customer";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<h2>Edit Customer</h2>
+
+@if (ViewBag.SuccessMessage != null)
+{
+    <div class="alert alert-success">@ViewBag.SuccessMessage</div>
+}
+
+@Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.CustID)
+    <div class="mb-3">
+        @Html.LabelFor(m => m.CustName, new { @class = "form-label" })
+        @Html.TextBoxFor(m => m.CustName, new { @class = "form-control" })
+    </div>
+    <div class="mb-3">
+        @Html.LabelFor(m => m.DOB, new { @class = "form-label" })
+        @Html.TextBoxFor(m => m.DOB, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
+    </div>
+    <div class="mb-3">
+        @Html.LabelFor(m => m.PAN, new { @class = "form-label" })
+        @Html.TextBoxFor(m => m.PAN, new { @class = "form-control" })
+    </div>
+    <div class="mb-3">
+        @Html.LabelFor(m => m.PhoneNumber, new { @class = "form-label" })
+        @Html.TextBoxFor(m => m.PhoneNumber, new { @class = "form-control" })
+    </div>
+    <div class="mb-3">
+        @Html.LabelFor(m => m.Address, new { @class = "form-label" })
+        @Html.TextBoxFor(m => m.Address, new { @class = "form-control" })
+    </div>
+    <div class="mb-3">
+        @Html.LabelFor(m => m.Gender, new { @class = "form-label" })
+        @Html.DropDownListFor(m => m.Gender, new SelectList(new[] { new { Value = true, Text = "Male" }, new { Value = false, Text = "Female" } }, "Value", "Text", Model.Gender), "Select Gender", new { @class = "form-control" })
+    </div>
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+    <a href="@Url.Action("RemoveCustomer", "Manager")" class="btn btn-secondary">Back</a>
+}

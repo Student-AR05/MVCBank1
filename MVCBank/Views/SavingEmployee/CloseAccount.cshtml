@@ -1,0 +1,27 @@
+@{
+    ViewBag.Title = "Savings - Close Account";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<h2>Close Savings Account</h2>
+
+@if (!string.IsNullOrEmpty(ViewBag.SuccessMessage))
+{
+    <div class="alert alert-success">@ViewBag.SuccessMessage</div>
+}
+
+@Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+<form method="post" action="@Url.Action("CloseAccount", "SavingEmployee")">
+    @Html.AntiForgeryToken()
+
+    @* Hidden account type fixed to SAVINGS *@
+    <input type="hidden" name="accountType" value="SAVINGS" />
+
+    <div class="mb-3" style="max-width:400px;">
+        <label class="form-label">Account ID</label>
+        <input type="text" name="accountId" class="form-control" placeholder="Enter SBAccountID e.g. SB00001" />
+    </div>
+
+    <button type="submit" class="btn btn-danger">Close Savings Account</button>
+</form>

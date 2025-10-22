@@ -1,0 +1,61 @@
+@model dynamic
+@{
+    ViewBag.Title = "Loan Employee Dashboard";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<style>
+    .kpi-card {
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        padding: 18px 20px;
+        color: #333;
+        background: #fff;
+        transition: transform .1s ease, box-shadow .1s ease;
+        height: 120px;
+    }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.12); }
+    .kpi-title { font-size: 13px; text-transform: uppercase; color: #6c757d; letter-spacing: .5px; }
+    .kpi-value { font-size: 28px; font-weight: 700; margin-top: 6px; }
+    .kpi-sub { font-size: 12px; color: #8a8f94; }
+    .kpi-accent-1 { border-left: 6px solid #0d6efd; }
+    .kpi-accent-4 { border-left: 6px solid #dc3545; }
+    .card { border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+    .card-header { background: #f8f9fa; font-weight: 600; }
+</style>
+
+<h2 class="mb-4">Loan Employee Dashboard</h2>
+<div class="text-muted mb-3">As of @DateTime.Now.ToString("dd MMM yyyy, HH:mm")</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-6">
+        <div class="kpi-card kpi-accent-1">
+            <div class="kpi-title">Active Loan Accounts</div>
+            <div class="kpi-value">@ViewBag.ActiveLoanAccounts</div>
+            <div class="kpi-sub">Total Principal: @ViewBag.TotalLoanPrincipal?.ToString("C0")</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-6">
+        <div class="kpi-card kpi-accent-4">
+            <div class="kpi-title">Pending Requests</div>
+            <div class="kpi-value">@ViewBag.PendingAccounts</div>
+            <div class="kpi-sub">Accounts awaiting approval</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-8">
+        <div class="card h-100">
+            <div class="card-header">Manage Loan Accounts</div>
+            <div class="list-group list-group-flush">
+                <a class="list-group-item list-group-item-action" href="@Url.Action("AddAccount", "LoanEmployee")">Open Loan Account</a>
+                <a class="list-group-item list-group-item-action" href="@Url.Action("CloseAccount", "LoanEmployee")">Close Loan Account</a>
+                <a class="list-group-item list-group-item-action" href="@Url.Action("Deposit", "LoanEmployee")">Record Payment</a>
+                <a class="list-group-item list-group-item-action" href="@Url.Action("Withdraw", "LoanEmployee")">Foreclose Loan</a>
+                <a class="list-group-item list-group-item-action" href="@Url.Action("ViewTransactions", "LoanEmployee")">View Transactions</a>
+                <a class="list-group-item list-group-item-action" href="@Url.Action("PendingRequests", "LoanEmployee")">Pending Requests</a>
+            </div>
+        </div>
+    </div>
+</div>
