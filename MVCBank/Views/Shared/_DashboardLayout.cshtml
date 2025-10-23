@@ -33,12 +33,17 @@
                     <div><strong>@userName</strong></div>
                     <div class="small">@userId • @role</div>
                 </div>
-                <a class="btn btn-outline-light btn-sm" href="@Url.Action("Login", "Auth")">Logout</a>
+                @using (Html.BeginForm("Logout", "Auth", FormMethod.Post, new { @class = "m-0" }))
+                {
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-outline-light btn-sm">Logout</button>
+                }
             </div>
         </div>
     </nav>
 
     <main class="content-area container">
+        @Html.Partial("_Alerts")
         @RenderBody()
     </main>
 
@@ -48,5 +53,42 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
     @RenderSection("Scripts", required: false)
+
+    <script>
+        // Global client-side error handler to show errors as Bootstrap alerts on dashboard pages
+        (function () {
+            function showClientError(message, source, lineno, colno, error) {
+                try {
+                    var container = document.getElementById('client-error-container');
+                    if (!container) {
+                        container = document.createElement('div');
+                        container.id = 'client-error-container';
+                        container.className = 'container position-fixed top-0 start-50 translate-middle-x mt-3';
+                        container.style.zIndex = 1080;
+                        document.body.appendChild(container);
+                    }
+
+                    var alert = document.createElement('div');
+                    alert.className = 'alert alert-danger alert-dismissible fade show shadow';
+                    var title = 'An error occurred';
+                    var detail = message || (error && (error.message || error.toString())) || 'Unknown error';
+                    var location = source ? ('\nSource: ' + source + (lineno ? ':' + lineno : '') + (colno ? ':' + colno : '')) : '';
+                    alert.innerHTML = '<strong>' + title + ':</strong> ' + detail + '<pre class="mb-0 small">' + (location) + '</pre>' +
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
+                    container.appendChild(alert);
+                } catch (e) { /* ignore */ }
+            }
+
+            window.addEventListener('error', function (e) {
+                showClientError(e.message, e.filename, e.lineno, e.colno, e.error);
+            });
+
+            window.addEventListener('unhandledrejection', function (e) {
+                var reason = e && e.reason;
+                var message = (reason && (reason.message || reason.toString())) || 'Unhandled promise rejection';
+                showClientError(message, null, null, null, reason);
+            });
+        })();
+    </script>
 </body>
 </html>

@@ -1,7 +1,28 @@
 @{
-    ViewBag.Title = "Open Savings";
+    ViewBag.Title = "Open Savings Account";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
 <h2>Open Savings Account</h2>
-<p>This is a placeholder page. Implement savings account opening form here.</p>
+
+@Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+@if (ViewBag.ErrorMessage != null)
+{
+    <div class="alert alert-danger">@ViewBag.ErrorMessage</div>
+}
+
+<form method="post" action="@Url.Action("OpenSavings", "Customer")">
+    @Html.AntiForgeryToken()
+    <div class="mb-3" style="max-width:400px;">
+        <label class="form-label">Initial Deposit (Rs.)</label>
+        <input type="number" name="initialDeposit" step="0.01" class="form-control" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Request Savings Account</button>
+</form>
+
+@if (ViewBag.SuccessMessage != null)
+{
+    <div class="alert alert-success mt-3">@ViewBag.SuccessMessage</div>
+}

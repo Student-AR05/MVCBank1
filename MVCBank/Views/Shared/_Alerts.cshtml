@@ -1,0 +1,57 @@
+@using System.Linq
+@{
+    var tempMessage = TempData["Message"] as string;
+    var success = ViewBag.SuccessMessage as string;
+    var error = ViewBag.ErrorMessage as string;
+    bool hasModelErrors = !ViewData.ModelState.IsValid && ViewData.ModelState.Values.Any(v => v.Errors.Any());
+}
+
+<div id="server-alerts">
+    @if (!string.IsNullOrEmpty(tempMessage))
+    {
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+            @tempMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(success))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @success
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(error))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @error
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (hasModelErrors)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <strong>There were some problems with your input:</strong>
+            <ul class="mb-0">
+                @foreach (var state in ViewData.ModelState.Values)
+                {
+                    foreach (var err in state.Errors)
+                    {
+                        if (!string.IsNullOrWhiteSpace(err.ErrorMessage))
+                        {
+                            <li>@err.ErrorMessage</li>
+                        }
+                        else if (err.Exception != null)
+                        {
+                            <li>@err.Exception.Message</li>
+                        }
+                    }
+                }
+            </ul>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+</div>

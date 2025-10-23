@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Web;
 using System.Web.Mvc;
+using System.Text.RegularExpressions;
 
 
 namespace MVCBank.Controllers
@@ -163,15 +164,73 @@ namespace MVCBank.Controllers
         {
             try
             {
+                // Normalize and validate input
+                c.CustName = (c.CustName ?? string.Empty).Trim();
+                c.PAN = (c.PAN ?? string.Empty).Trim().ToUpperInvariant();
+                c.PhoneNumber = (c.PhoneNumber ?? string.Empty).Trim();
+                c.Address = (c.Address ?? string.Empty).Trim();
+
                 var plain = Request.Form["PlainPassword"];
+
+                // Required checks
+                if (string.IsNullOrWhiteSpace(c.CustName))
+                    ModelState.AddModelError("CustName", "Customer name is required.");
+
+                if (c.DOB == default(DateTime))
+                    ModelState.AddModelError("DOB", "Date of birth is required.");
+
+                if (string.IsNullOrWhiteSpace(c.PAN))
+                    ModelState.AddModelError("PAN", "PAN is required.");
+
+                if (string.IsNullOrWhiteSpace(c.PhoneNumber))
+                    ModelState.AddModelError("PhoneNumber", "Phone number is required.");
+
+                if (string.IsNullOrWhiteSpace(c.Address))
+                    ModelState.AddModelError("Address", "Address is required.");
+
                 if (string.IsNullOrEmpty(plain))
-                {
                     ModelState.AddModelError("CustPassword", "Password is required.");
+
+                // Ensure a gender option was selected (radio group posts a value only when selected)
+                if (Request.Form["Gender"] == null)
+                    ModelState.AddModelError("Gender", "Please select gender.");
+
+                // Name format: letters and spaces only, at least 2 characters
+                var namePattern = new Regex("^[A-Za-z][A-Za-z ]{1,}$");
+                if (!string.IsNullOrEmpty(c.CustName) && !namePattern.IsMatch(c.CustName))
+                    ModelState.AddModelError("CustName", "Name must contain only letters and spaces, min 2 characters.");
+
+                // DOB: Age must be 18+
+                if (c.DOB != default(DateTime))
+                {
+                    var today = DateTime.Today;
+                    int age = today.Year - c.DOB.Year;
+                    if (c.DOB > today.AddYears(-age)) age--;
+                    if (age < 18)
+                        ModelState.AddModelError("DOB", "You must be at least 18 years old.");
+                }
+
+                // PAN format AAAA1234
+                var panPattern = new Regex("^[A-Z]{4}[0-9]{4}$");
+                if (!string.IsNullOrEmpty(c.PAN) && !panPattern.IsMatch(c.PAN))
+                    ModelState.AddModelError("PAN", "PAN must be in format AAAA1234.");
+
+                // Phone number: exactly 10 digits
+                var phonePattern = new Regex("^\\d{10}$");
+                if (!string.IsNullOrEmpty(c.PhoneNumber) && !phonePattern.IsMatch(c.PhoneNumber))
+                    ModelState.AddModelError("PhoneNumber", "Phone number must be exactly 10 digits.");
+
+                // Duplicate PAN check (optional, avoids SQL errors)
+                if (!string.IsNullOrEmpty(c.PAN) && db.Customers.Any(x => x.PAN == c.PAN))
+                    ModelState.AddModelError("PAN", "PAN already exists for another customer.");
+
+                if (!ModelState.IsValid)
+                {
                     return View(c);
                 }
 
                 c.CustPassword = Encoding.UTF8.GetBytes(plain);
-                
+
 
                 var sql = @"
                 INSERT INTO dbo.Customer (CustName, DOB, PAN, PhoneNumber, Gender, Address, CustPassword)

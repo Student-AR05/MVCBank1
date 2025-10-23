@@ -4,4 +4,164 @@
 }
 
 <h2>Transactions</h2>
-<p>This is a placeholder page. Implement transaction listing here.</p>
+
+@Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+<p>Select one of your accounts to view recent transactions.</p>
+
+<form method="get" action="@Url.Action("Transactions", "Customer")" class="row g-3 mb-3" style="max-width:900px;">
+    <div class="col-md-4">
+        <label class="form-label">Account Type</label>
+        <select name="accountType" class="form-control">
+            <option value="">-- Select --</option>
+            <option value="SAVINGS">Savings</option>
+            <option value="FD">Fixed Deposit (FD)</option>
+            <option value="LOAN">Loan</option>
+        </select>
+    </div>
+
+    <div class="col-md-4">
+        <label class="form-label">Account ID</label>
+        <input type="text" name="accountId" class="form-control" placeholder="Enter account id or leave blank to pick from list" />
+    </div>
+
+    <div class="col-md-4 align-self-end">
+        <button type="submit" class="btn btn-primary">Load Transactions</button>
+    </div>
+</form>
+
+@if (ViewBag.SavingsAccounts != null)
+{
+    var sList = ViewBag.SavingsAccounts as IEnumerable<MVCBank.Models.SavingsAccount>;
+    if (sList.Any())
+    {
+        <div class="mb-3">
+            <h5>Your Savings Accounts</h5>
+            <ul>
+                @foreach (var a in sList)
+                {
+                    <li>@a.SBAccountID - Balance: @String.Format("{0:C2}", a.Balance) - Status: @a.Status</li>
+                }
+            </ul>
+        </div>
+    }
+}
+
+@if (ViewBag.FDAccounts != null)
+{
+    var fList = ViewBag.FDAccounts as IEnumerable<MVCBank.Models.FixedDepositAccount>;
+    if (fList.Any())
+    {
+        <div class="mb-3">
+            <h5>Your Fixed Deposits</h5>
+            <ul>
+                @foreach (var f in fList)
+                {
+                    <li>@f.FDAccountID - Amount: @String.Format("{0:C2}", f.DepositAmount) - Start: @f.StartDate.ToString("yyyy-MM-dd") - End: @f.EndDate.ToString("yyyy-MM-dd") - Status: @f.Status</li>
+                }
+            </ul>
+        </div>
+    }
+}
+
+@if (ViewBag.LoanAccounts != null)
+{
+    var lList = ViewBag.LoanAccounts as IEnumerable<MVCBank.Models.LoanAccount>;
+    if (lList.Any())
+    {
+        <div class="mb-3">
+            <h5>Your Loan Accounts</h5>
+            <ul>
+                @foreach (var l in lList)
+                {
+                    <li>@l.LNAccountID - Amount: @String.Format("{0:C2}", l.LoanAmount) - Tenure: @l.TenureMonths months - Status: @l.Status</li>
+                }
+            </ul>
+        </div>
+    }
+}
+
+@if (ViewBag.Transactions != null)
+{
+    <h4 class="mt-4">Transactions for @ViewBag.AccountType - @((ViewBag.Account != null) ? (ViewBag.Account.SBAccountID ?? ViewBag.Account.FDAccountID ?? ViewBag.Account.LNAccountID) : "")</h4>
+
+    if (ViewBag.AccountType == "SAVINGS")
+    {
+        var txns = ViewBag.Transactions as IEnumerable<MVCBank.Models.SavingsTransaction>;
+        @Html.Partial("~/Views/Shared/_TransactionsTable.cshtml", txns)
+    }
+    else if (ViewBag.AccountType == "FD")
+    {
+        var txns = ViewBag.Transactions as IEnumerable<MVCBank.Models.FDTransaction>;
+        if (txns.Any())
+        {
+            <table class="table table-striped mt-2">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var t in txns)
+                    {
+                        <tr>
+                            <td>@(t.TransactionDate.HasValue ? t.TransactionDate.Value.ToString("yyyy-MM-dd HH:mm") : "")</td>
+                            <td>@t.FDType</td>
+                            <td>@String.Format("{0:C2}", t.Amount ?? 0m)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <div class="alert alert-info">No transactions found for this FD account.</div>
+        }
+    }
+    else if (ViewBag.AccountType == "LOAN")
+    {
+        var txns = ViewBag.Transactions as IEnumerable<MVCBank.Models.LoanTransaction>;
+        if (txns.Any())
+        {
+            <table class="table table-striped mt-2">
+                <thead>
+                    <tr>
+                        <th>Due Date</th>
+                        <th>Paid Date</th>
+                        <th>Amount</th>
+                        <th>Outstanding</th>
+                        <th>Penalty</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var t in txns)
+                    {
+                        <tr>
+                            <td>@t.EMIDate_Actual.ToString("yyyy-MM-dd")</td>
+                            <td>@(t.EMIDate_Paid.HasValue ? t.EMIDate_Paid.Value.ToString("yyyy-MM-dd") : "")</td>
+                            <td>@String.Format("{0:C2}", t.Amount)</td>
+                            <td>@String.Format("{0:C2}", t.Outstanding)</td>
+                            <td>@(t.LatePenalty.HasValue ? String.Format("{0:C2}", t.LatePenalty.Value) : "")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <div class="alert alert-info">No transactions found for this loan account.</div>
+        }
+    }
+}
+
+@if (!String.IsNullOrEmpty(ViewBag.SuccessMessage))
+{
+    <div class="alert alert-success mt-3">@ViewBag.SuccessMessage</div>
+}
+
+@if (!String.IsNullOrEmpty(ViewBag.ErrorMessage))
+{
+    <div class="alert alert-danger mt-3">@ViewBag.ErrorMessage</div>
+}

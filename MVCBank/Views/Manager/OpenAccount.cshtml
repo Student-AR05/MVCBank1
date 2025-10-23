@@ -65,7 +65,7 @@
     <div id="newBlock" style="display:none;">
         <h5>New Customer Details</h5>
         <div class="mb-3" style="max-width:500px;"><label>Name</label><input type="text" name="New_CustName" class="form-control" /></div>
-        <div class="mb-3" style="max-width:300px;"><label>DOB</label><input type="date" name="New_DOB" id="New_DOB" class="form-control" /></div>
+        <div class="mb-3" style="max-width:300px;"><label>DOB</label><input type="date" name="New_DOB" id="New_DOB" class="form-control" max="@DateTime.Today.AddYears(-18).ToString("yyyy-MM-dd")" /></div>
         <div class="mb-3" style="max-width:300px;"><label>PAN</label><input type="text" name="New_PAN" class="form-control" /></div>
         <div class="mb-3" style="max-width:300px;"><label>Phone</label><input type="text" name="New_PhoneNumber" class="form-control" /></div>
         <div class="mb-3"><label>Gender</label><br /><label><input type="radio" name="New_Gender" value="true" /> Male</label> <label class="ms-3"><input type="radio" name="New_Gender" value="false" /> Female</label></div>

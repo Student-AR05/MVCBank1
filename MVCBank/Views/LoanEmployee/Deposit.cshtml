@@ -12,18 +12,55 @@
 
 @Html.ValidationSummary(true, "", new { @class = "text-danger" })
 
-<form method="post" action="@Url.Action("Deposit", "LoanEmployee")">
-    @Html.AntiForgeryToken()
-
+<form method="get" action="@Url.Action("Deposit", "LoanEmployee")" class="mb-3">
     <div class="mb-3" style="max-width:400px;">
         <label class="form-label">Loan Account ID (LN...)</label>
-        <input type="text" name="accountId" class="form-control" placeholder="LN00001" />
+        <div class="input-group">
+            <input type="text" name="accountId" class="form-control" placeholder="LN00001" value="@(Request["accountId"] ?? "")" />
+            <button type="submit" class="btn btn-secondary">Load</button>
+        </div>
     </div>
-
-    <div class="mb-3" style="max-width:300px;">
-        <label class="form-label">Payment Amount</label>
-        <input type="number" step="0.01" min="0.01" name="amount" class="form-control" />
-    </div>
-
-    <button type="submit" class="btn btn-primary">Record Payment</button>
 </form>
+
+@if (ViewBag.Account != null)
+{
+    <div style="max-width:900px;">
+        <h5>Loan Details</h5>
+        <dl class="row">
+            <dt class="col-sm-3">Account ID</dt>
+            <dd class="col-sm-9">@ViewBag.Account.LNAccountID</dd>
+
+            <dt class="col-sm-3">Customer ID</dt>
+            <dd class="col-sm-9">@ViewBag.Account.CustomerID</dd>
+
+            <dt class="col-sm-3">Loan Amount</dt>
+            <dd class="col-sm-9">@String.Format("{0:C2}", ViewBag.Account.LoanAmount)</dd>
+
+            <dt class="col-sm-3">Tenure (months)</dt>
+            <dd class="col-sm-9">@ViewBag.Account.TenureMonths</dd>
+
+            <dt class="col-sm-3">ROI (%)</dt>
+            <dd class="col-sm-9">@ViewBag.LoanROI</dd>
+
+            <dt class="col-sm-3">EMI</dt>
+            <dd class="col-sm-9">@String.Format("{0:C2}", ViewBag.LoanEMI)</dd>
+
+            <dt class="col-sm-3">Current Outstanding</dt>
+            <dd class="col-sm-9">@String.Format("{0:C2}", ViewBag.Outstanding)</dd>
+        </dl>
+
+        <form method="post" action="@Url.Action("Deposit", "LoanEmployee")">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="accountId" value="@ViewBag.Account.LNAccountID" />
+            <div class="mb-3" style="max-width:300px;">
+                <label class="form-label">Payment Amount</label>
+                <input type="number" step="0.01" min="0.01" name="amount" class="form-control" />
+            </div>
+            <button type="submit" class="btn btn-primary">Record Payment</button>
+        </form>
+    </div>
+}
+else
+{
+    <div class="alert alert-info">Enter a Loan Account ID and click Load to view details and record payment.</div>
+}

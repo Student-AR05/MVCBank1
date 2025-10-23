@@ -7,31 +7,39 @@
 
 <h2 class="mb-4">Register as Customer</h2>
 
-<form method="post" action="@Url.Action("Register", "Auth")">
+@Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+<form method="post" action="@Url.Action("Register", "Auth")" novalidate>
     <div style="width:300px">
         @Html.LabelFor(c => c.CustName)
-        @Html.TextBoxFor(c => c.CustName, new { @class = "form-control", id = "custName" })
+        @Html.TextBoxFor(c => c.CustName, new { @class = "form-control", id = "custName", required = "required", pattern = "[A-Za-z][A-Za-z ]{1,}", title = "Only letters and spaces, min 2 characters" })
+        @Html.ValidationMessageFor(c => c.CustName, "", new { @class = "text-danger" })
 
         @Html.Label("CustPassword", "Password")
-        @Html.Password("PlainPassword", null, new { @class = "form-control", id = "password" })
-
+        @Html.Password("PlainPassword", null, new { @class = "form-control", id = "password", required = "required" })
+        
         @Html.LabelFor(c => c.DOB)
-        @Html.TextBoxFor(c => c.DOB, new { @type = "date", @class = "form-control", id = "dob" })
+        @Html.TextBoxFor(c => c.DOB, new { @type = "date", @class = "form-control", id = "dob", required = "required", max = DateTime.Today.AddYears(-18).ToString("yyyy-MM-dd") })
+        @Html.ValidationMessageFor(c => c.DOB, "", new { @class = "text-danger" })
 
         @Html.LabelFor(c => c.PAN)
-        @Html.TextBoxFor(c => c.PAN, new { @class = "form-control", id = "pan", maxlength = "8", pattern = "[A-Z]{4}[0-9]{4}", title = "Format: AAAA1234" })
+        @Html.TextBoxFor(c => c.PAN, new { @class = "form-control", id = "pan", maxlength = "8", pattern = "[A-Z]{4}[0-9]{4}", title = "Format: AAAA1234", required = "required" })
+        @Html.ValidationMessageFor(c => c.PAN, "", new { @class = "text-danger" })
 
         @Html.LabelFor(c => c.PhoneNumber)
-        @Html.TextBoxFor(c => c.PhoneNumber, new { @class = "form-control", id = "phone" })
+        @Html.TextBoxFor(c => c.PhoneNumber, new { @class = "form-control", id = "phone", required = "required", pattern = "\\d{10}", title = "10 digit phone number" })
+        @Html.ValidationMessageFor(c => c.PhoneNumber, "", new { @class = "text-danger" })
 
         @Html.LabelFor(c => c.Gender)
         <div>
-            <label><input type="radio" name="Gender" value="true" /> Male</label>
-            <label><input type="radio" name="Gender" value="false" /> Female</label>
+            <label><input type="radio" name="Gender" value="true" required /> Male</label>
+            <label class="ms-2"><input type="radio" name="Gender" value="false" required /> Female</label>
         </div>
+        @Html.ValidationMessageFor(c => c.Gender, "", new { @class = "text-danger" })
 
         @Html.LabelFor(c => c.Address)
-        @Html.TextBoxFor(c => c.Address, new { @class = "form-control", id = "address" })
+        @Html.TextBoxFor(c => c.Address, new { @class = "form-control", id = "address", required = "required" })
+        @Html.ValidationMessageFor(c => c.Address, "", new { @class = "text-danger" })
 
         <br />
         <input type="submit" value="Register" class="btn btn-primary" />

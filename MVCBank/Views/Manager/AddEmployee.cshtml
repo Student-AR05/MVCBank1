@@ -24,7 +24,7 @@
     @Html.AntiForgeryToken()
     <div class="mb-3" style="max-width:500px;">
         <label class="form-label">Name</label>
-        <input type="text" name="EmpName" class="form-control" required />
+        <input type="text" name="EmpName" class="form-control" required pattern="[A-Za-z][A-Za-z ]{1,}" title="Only letters and spaces, min 2 characters" />
     </div>
 
     <div class="mb-3" style="max-width:300px;" id="deptSelector">

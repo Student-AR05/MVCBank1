@@ -1,0 +1,50 @@
+@model List<MVCBank.Models.ViewModels.PendingAccountRequestViewModel>
+@{
+    ViewBag.Title = "Pending Loan Requests";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<h2>Pending Loan Requests</h2>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+}
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+}
+
+@if (Model == null || !Model.Any())
+{
+    <div class="alert alert-info">No pending loan requests.</div>
+}
+else
+{
+    <table class="table table-striped" style="max-width:900px;">
+        <thead>
+            <tr>
+                <th>Account ID</th>
+                <th>Customer</th>
+                <th>Amount</th>
+                <th>Start Date</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var r in Model)
+            {
+                <tr>
+                    <td>@r.AccountID</td>
+                    <td>@r.CustomerName (@r.CustomerID)</td>
+                    <td>@String.Format("{0:C2}", r.Amount)</td>
+                    <td>@(r.StartDate?.ToString("yyyy-MM-dd") ?? "-")</td>
+                    <td>
+                        <a href="@Url.Action("UpdateLoanRequest", "LoanEmployee", new { accountId = r.AccountID, decision = "approve" })" class="btn btn-sm btn-success" onclick="return confirm('Approve loan ' + '@r.AccountID' + '?');">Approve</a>
+                        <a href="@Url.Action("UpdateLoanRequest", "LoanEmployee", new { accountId = r.AccountID, decision = "reject" })" class="btn btn-sm btn-danger" onclick="return confirm('Reject loan ' + '@r.AccountID' + '?');">Reject</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

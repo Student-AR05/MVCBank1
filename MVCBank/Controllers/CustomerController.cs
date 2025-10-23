@@ -9,6 +9,7 @@ using MVCBank.Models.ViewModels;
 using System.Data.SqlClient;
 using System.Data;
 using MVCBank.Filters;
+using System.Data.Entity;
 
 namespace MVCBank.Controllers
 {
@@ -190,13 +191,13 @@ namespace MVCBank.Controllers
                         EndDate = DateTime.Now.Date.AddMonths(months),
                         DepositAmount = amount,
                         FDROI = roi,
-                        Status = "Pending"
+                        Status = "Active" // create FD as Active by default (no manager approval)
                     };
 
                     db.FixedDepositAccounts.Add(fd);
                     db.SaveChanges();
 
-                    TempData["Message"] = "Fixed deposit created and pending activation.";
+                    TempData["Message"] = "Fixed deposit created and activated.";
                     return RedirectToAction("Dashboard");
                 }
 
@@ -213,22 +214,26 @@ namespace MVCBank.Controllers
                         return RedirectToAction("OpenAccount");
                     }
 
-                    var loan = new LoanAccount
-                    {
-                        CustomerID = userId,
-                        LoanAmount = amount,
-                        StartDate = DateTime.Now.Date,
-                        TenureMonths = months,
-                        LNROI = roi,
-                        Status = "Pending",
-                        EMIAmount = Math.Round((amount * roi / 100) / (months == 0 ? 1 : months), 2)
+                    decimal emi = months == 0 ? 0 : Math.Round((amount * roi / 100) / months, 2);
+                    var start = DateTime.Now.Date;
+
+                    var sql = @"INSERT INTO dbo.LoanAccount (CustomerID, LoanAmount, StartDate, TenureMonths, LNROI, EMIAmount, Status) VALUES (@CustomerID, @LoanAmount, @StartDate, @TenureMonths, @LNROI, @EMIAmount, @Status)";
+                    var parameters = new[] {
+                        new SqlParameter("@CustomerID", userId),
+                        new SqlParameter("@LoanAmount", amount),
+                        new SqlParameter("@StartDate", start),
+                        new SqlParameter("@TenureMonths", months),
+                        new SqlParameter("@LNROI", roi),
+                        new SqlParameter("@EMIAmount", emi),
+                        new SqlParameter("@Status", "Active")
                     };
 
-                    db.LoanAccounts.Add(loan);
-                    db.SaveChanges();
+                    db.Database.ExecuteSqlCommand(sql, parameters);
 
-                    TempData["Message"] = "Loan application created and pending review.";
-                    return RedirectToAction("Dashboard");
+                    var acc = db.LoanAccounts.FirstOrDefault(a => a.CustomerID == userId && a.StartDate == start && a.LoanAmount == amount);
+                    ViewBag.SuccessMessage = "Loan account created successfully.";
+                    ViewBag.CreatedAccountID = acc?.LNAccountID;
+                    return View();
                 }
             }
             catch (Exception ex)
@@ -246,6 +251,62 @@ namespace MVCBank.Controllers
         public ActionResult OpenSavings()
         {
             return View();
+        }
+
+        // POST: create a savings account request from customer (marked Pending)
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult OpenSavings(FormCollection form)
+        {
+            var userId = Session["UserID"] as string;
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                TempData["Message"] = "User not logged in.";
+                return RedirectToAction("OpenSavings");
+            }
+
+            decimal initial = 0m;
+            decimal.TryParse(form["initialDeposit"], out initial);
+
+            if (initial < 1000m)
+            {
+                ModelState.AddModelError("", "Minimum initial deposit for savings is Rs. 1,000.");
+                ViewBag.ErrorMessage = "Minimum initial deposit for savings is Rs. 1,000.";
+                return View();
+            }
+
+            try
+            {
+                var existing = db.SavingsAccounts.FirstOrDefault(a => a.CustomerID == userId);
+                if (existing != null)
+                {
+                    ModelState.AddModelError("", "You already have a savings account.");
+                    ViewBag.ErrorMessage = "You already have a savings account.";
+                    return View();
+                }
+
+                var account = new SavingsAccount
+                {
+                    CustomerID = userId,
+                    Balance = initial,
+                    Status = "Pending",
+                    CreatedAt = DateTime.Now
+                };
+
+                db.SavingsAccounts.Add(account);
+                db.SaveChanges();
+
+                TempData["Message"] = "Savings account request submitted and pending approval.";
+                return RedirectToAction("Dashboard");
+            }
+            catch (Exception ex)
+            {
+                var inner = ex.InnerException?.Message ?? ex.Message;
+                ModelState.AddModelError("", "Failed to submit request: " + inner);
+                ViewBag.ErrorMessage = "Failed to submit request: " + inner;
+                return View();
+            }
         }
 
         [HttpGet]
@@ -277,6 +338,32 @@ namespace MVCBank.Controllers
                 return View();
             }
 
+            // Ensure customer exists
+            var cust = db.Customers.FirstOrDefault(c => c.CustID == userId);
+            if (cust == null)
+            {
+                ModelState.AddModelError("", "Customer not found.");
+                return View();
+            }
+
+            // Check for an active savings account and sufficient balance for FD deposit
+            var savings = db.SavingsAccounts.FirstOrDefault(a => a.CustomerID == userId && ((a.Status ?? "").ToLower() == "active"));
+            if (savings == null)
+            {
+                var msg = "No active savings account found. Please open and activate a savings account before creating an FD.";
+                ModelState.AddModelError("", msg);
+                ViewBag.ErrorMessage = msg;
+                return View();
+            }
+
+            if (savings.Balance < amount)
+            {
+                var msg = $"Insufficient balance in savings account. Available balance: Rs. {savings.Balance:0.00}";
+                ModelState.AddModelError("", msg);
+                ViewBag.ErrorMessage = msg;
+                return View();
+            }
+
             // determine base ROI based on duration in years
             decimal years = Math.Round((decimal)months / 12m, 4);
             decimal baseRoi;
@@ -288,13 +375,6 @@ namespace MVCBank.Controllers
                 baseRoi = 8.0m; // for durations >2 years
 
             // senior citizen check: age >= 60 -> +0.5%
-            var cust = db.Customers.FirstOrDefault(c => c.CustID == userId);
-            if (cust == null)
-            {
-                ModelState.AddModelError("", "Customer not found.");
-                return View();
-            }
-
             int age = 0;
             try
             {
@@ -321,62 +401,124 @@ namespace MVCBank.Controllers
             double maturity = p * Math.Pow(1.0 + r, t);
             decimal maturityAmount = Math.Round((decimal)maturity, 2);
 
-            // generate unique FDAccountID
-            string fdId;
-            var rnd = new Random();
-            do
-            {
-                fdId = "FD" + rnd.Next(0, 99999).ToString("D5");
-            } while (db.FixedDepositAccounts.Any(f => f.FDAccountID == fdId));
-
             try
             {
-                var fd = new FixedDepositAccount
+                // Use a DB transaction: deduct savings balance, create FD (Active), and add transactions
+                using (var tran = db.Database.BeginTransaction())
                 {
-                    CustomerID = userId,
-                    StartDate = DateTime.Now.Date,
-                    EndDate = DateTime.Now.Date.AddMonths(months),
-                    DepositAmount = amount,
-                    FDROI = finalRoi,
-                    Status = "Pending"
-                    // do not set FDAccountID because it's computed in the database
-                };
+                    try
+                    {
+                        // Deduct amount from savings balance
+                        var rows = db.Database.ExecuteSqlCommand(
+                            "UPDATE dbo.SavingsAccount SET Balance = Balance - @p0 WHERE SBAccountID = @p1",
+                            amount, savings.SBAccountID);
+                        if (rows == 0)
+                        {
+                            tran.Rollback();
+                            ModelState.AddModelError("", "Failed to deduct amount from savings account.");
+                            return View();
+                        }
 
-                // Insert without FDAccountID (DB computes it)
-                var insertSql = @"INSERT INTO dbo.FixedDepositAccount (CustomerID, StartDate, EndDate, DepositAmount, FDROI, Status)
-                                  VALUES (@CustomerID, @StartDate, @EndDate, @DepositAmount, @FDROI, @Status)";
+                        // refresh savings entity from DB to get updated balance
+                        savings = db.SavingsAccounts.FirstOrDefault(a => a.SBAccountID == savings.SBAccountID);
+                        if (savings != null)
+                        {
+                            ViewBag.SavingsBalance = savings.Balance;
+                        }
 
-                var insertParams = new[] {
-                    new SqlParameter("@CustomerID", fd.CustomerID),
-                    new SqlParameter("@StartDate", fd.StartDate),
-                    new SqlParameter("@EndDate", fd.EndDate),
-                    new SqlParameter("@DepositAmount", fd.DepositAmount),
-                    new SqlParameter("@FDROI", fd.FDROI),
-                    new SqlParameter("@Status", fd.Status)
-                };
+                        // Create FD as Active (no manager approval required)
+                        var fdStart = DateTime.Now.Date;
+                        var fdEnd = DateTime.Now.Date.AddMonths(months);
 
-                db.Database.ExecuteSqlCommand(insertSql, insertParams);
+                        // Insert FD and return generated FDAccountID
+                        var insertFdSql = @"INSERT INTO dbo.FixedDepositAccount (CustomerID, StartDate, EndDate, DepositAmount, FDROI, Status)
+                                             VALUES (@CustomerID, @StartDate, @EndDate, @DepositAmount, @FDROI, @Status);
+                                             SELECT FDAccountID FROM dbo.FixedDepositAccount WHERE FDNum = SCOPE_IDENTITY();";
 
-                // retrieve the newly created FD record (latest by FDNum for this customer and start date)
-                var created = db.FixedDepositAccounts
-                                .Where(f => f.CustomerID == userId && System.Data.Entity.DbFunctions.TruncateTime(f.StartDate) == fd.StartDate.Date && f.DepositAmount == amount)
-                                .OrderByDescending(f => f.FDNum)
-                                .FirstOrDefault();
+                        var createdFdId = db.Database.SqlQuery<string>(
+                            insertFdSql,
+                            new SqlParameter("@CustomerID", userId),
+                            new SqlParameter("@StartDate", fdStart),
+                            new SqlParameter("@EndDate", fdEnd),
+                            new SqlParameter("@DepositAmount", amount),
+                            new SqlParameter("@FDROI", finalRoi),
+                            new SqlParameter("@Status", "Active")
+                        ).FirstOrDefault();
 
-                if (created != null)
-                {
-                    ViewBag.FDAccountID = created.FDAccountID;
+                        FixedDepositAccount created = null;
+                        if (!string.IsNullOrEmpty(createdFdId))
+                        {
+                            created = db.FixedDepositAccounts.FirstOrDefault(f => f.FDAccountID == createdFdId);
+                        }
+                        else
+                        {
+                            // Fallback: try to locate by attributes
+                            created = db.FixedDepositAccounts
+                                        .Where(f => f.CustomerID == userId && f.StartDate == fdStart && f.DepositAmount == amount)
+                                        .OrderByDescending(f => f.FDNum)
+                                        .FirstOrDefault();
+                        }
+
+                        // populate viewbag with FD dates/status for display
+                        if (created != null)
+                        {
+                            ViewBag.StartDate = created.StartDate;
+                            ViewBag.EndDate = created.EndDate;
+                            ViewBag.Status = created.Status;
+                            ViewBag.FDAccountID = created.FDAccountID;
+                        }
+                        else
+                        {
+                            ViewBag.FDAccountID = null;
+                        }
+
+                        // Create a savings transaction recording the debit (use 'W' to satisfy CHECK constraint)
+                        var insertSavSql = @"INSERT INTO dbo.SavingsTransaction (SBAccountID, TransactionDate, TransactionType, Amount)
+                                             VALUES (@SBAccountID, @TransactionDate, @TransactionType, @Amount)";
+                        db.Database.ExecuteSqlCommand(insertSavSql,
+                            new SqlParameter("@SBAccountID", savings.SBAccountID),
+                            new SqlParameter("@TransactionDate", DateTime.Now),
+                            new SqlParameter("@TransactionType", "W"),
+                            new SqlParameter("@Amount", amount)
+                        );
+
+                        // Try to fetch the created transaction (TransactionID is computed by DB)
+                        var createdSavTx = db.SavingsTransactions
+                                            .Where(tx => tx.SBAccountID == savings.SBAccountID && DbFunctions.TruncateTime(tx.TransactionDate) == DbFunctions.TruncateTime(DateTime.Now) && tx.Amount == amount)
+                                            .OrderByDescending(tx => tx.TransactionNum)
+                                            .FirstOrDefault();
+                        if (createdSavTx != null)
+                        {
+                            ViewBag.CreatedSavingsTransactionID = createdSavTx.TransactionID;
+                        }
+
+                        // Optionally create an FDTransaction record
+                        if (created != null)
+                        {
+                            var insertFdTxSql = @"INSERT INTO dbo.FDTransaction (FDAccountID, TransactionDate, FDType, Amount)
+                                                  VALUES (@FDAccountID, @TransactionDate, @FDType, @Amount)";
+                            db.Database.ExecuteSqlCommand(insertFdTxSql,
+                                new SqlParameter("@FDAccountID", created.FDAccountID),
+                                new SqlParameter("@TransactionDate", DateTime.Now),
+                                new SqlParameter("@FDType", "C"),
+                                new SqlParameter("@Amount", amount)
+                            );
+                        }
+
+                        tran.Commit();
+
+                        ViewBag.SuccessMessage = "Fixed deposit created and activated. Amount deducted from savings.";
+                        ViewBag.MaturityAmount = maturityAmount;
+                        ViewBag.ROI = finalRoi;
+                        ViewBag.DurationMonths = months;
+                        ViewBag.DepositAmount = amount;
+                    }
+                    catch
+                    {
+                        tran.Rollback();
+                        throw;
+                    }
                 }
-                else
-                {
-                    ViewBag.FDAccountID = null; // not found
-                }
-
-                ViewBag.SuccessMessage = "Fixed deposit created and pending activation.";
-                ViewBag.MaturityAmount = maturityAmount;
-                ViewBag.ROI = finalRoi;
-                ViewBag.DurationMonths = months;
-                ViewBag.DepositAmount = amount;
             }
             catch (System.Data.Entity.Validation.DbEntityValidationException valEx)
             {
@@ -388,12 +530,14 @@ namespace MVCBank.Controllers
             {
                 var inner = dbEx.InnerException?.Message ?? dbEx.Message;
                 ModelState.AddModelError("", "DB update failed: " + inner);
+                var msg = GetInnerExceptionMessages(dbEx);
+                ModelState.AddModelError("", "DB update failed: " + msg);
                 return View();
             }
             catch (Exception ex)
             {
-                var inner = ex.InnerException?.Message ?? ex.Message;
-                ModelState.AddModelError("", "Failed to create FD: " + inner);
+                var innerMsg = GetInnerExceptionMessages(ex);
+                ModelState.AddModelError("", "Failed to create FD: " + innerMsg);
                 return View();
             }
 
@@ -403,15 +547,249 @@ namespace MVCBank.Controllers
         [HttpGet]
         public ActionResult ApplyLoan()
         {
+            // Auto-fill applicant details from logged-in customer's profile
+            var userId = Session["UserID"] as string;
+            var cust = db.Customers.FirstOrDefault(c => c.CustID == userId);
+            if (cust != null)
+            {
+                ViewBag.ApplicantName = cust.CustName;
+                ViewBag.DOB = cust.DOB.ToString("yyyy-MM-dd");
+                ViewBag.PAN = cust.PAN;
+                ViewBag.Mobile = cust.PhoneNumber;
+                ViewBag.Address = cust.Address;
+            }
             return View();
         }
 
-        [HttpGet]
-        public ActionResult Transactions()
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult ApplyLoan(FormCollection form)
         {
+            var userId = Session["UserID"] as string;
+            if (string.IsNullOrEmpty(userId))
+            {
+                ModelState.AddModelError("", "User not logged in.");
+                return View();
+            }
+
+            try
+            {
+                decimal amount = 0; int months = 0; decimal roi = 0;
+                decimal.TryParse(form["loanAmount"], out amount);
+                int.TryParse(form["loanTenure"], out months);
+                decimal monthlyTakeHome = 0;
+                // Fix: read netMonthlyIncome from the form
+                decimal.TryParse(form["netMonthlyIncome"], out monthlyTakeHome);
+
+                // Minimum loan amount
+                if (amount < 10000)
+                {
+                    ModelState.AddModelError("", "Minimum loan amount is Rs. 10,000.");
+                    return View();
+                }
+
+                if (months <= 0)
+                {
+                    ModelState.AddModelError("", "Loan tenure (months) is required.");
+                    return View();
+                }
+
+                if (monthlyTakeHome <= 0)
+                {
+                    ModelState.AddModelError("", "Monthly take home is required.");
+                    return View();
+                }
+
+                var cust = db.Customers.FirstOrDefault(c => c.CustID == userId);
+                if (cust == null)
+                {
+                    ModelState.AddModelError("", "Customer not found.");
+                    return View();
+                }
+
+                // Age calculation for senior citizen
+                var today = DateTime.Today;
+                int age = today.Year - cust.DOB.Year;
+                if (cust.DOB > today.AddYears(-age)) age--;
+                bool isSenior = age >= 60;
+
+                if (isSenior)
+                {
+                    if (amount > 100000)
+                    {
+                        ModelState.AddModelError("", "Senior Citizens cannot be sanctioned a loan of greater than 1 lakh.");
+                        return View();
+                    }
+                    roi = 9.5m;
+                }
+                else
+                {
+                    if (amount >= 1000000) roi = 9.0m;
+                    else if (amount >= 500000) roi = 9.5m;
+                    else roi = 10.0m;
+                }
+
+                // EMI calculation
+                decimal monthlyRate = roi / (12 * 100);
+                double pow = Math.Pow(1 + (double)monthlyRate, months);
+                decimal emi = (monthlyRate == 0) ? (amount / months) : (amount * monthlyRate * (decimal)pow) / ((decimal)pow - 1);
+                emi = Math.Round(emi, 2);
+
+                if (emi > 0.6m * monthlyTakeHome)
+                {
+                    ModelState.AddModelError("", $"EMI ({emi:C2}) cannot exceed 60% of monthly take home ({monthlyTakeHome:C2}).");
+                    return View();
+                }
+
+                // Insert LoanAccount (let DB generate LNAccountID) and return inserted LNAccountID
+                var start = DateTime.Now.Date;
+                var sqlAcc = @"INSERT INTO dbo.LoanAccount (CustomerID, LoanAmount, StartDate, TenureMonths, LNROI, EMIAmount, Status)
+                               VALUES (@CustomerID, @LoanAmount, @StartDate, @TenureMonths, @LNROI, @EMIAmount, @Status);
+                               SELECT LNAccountID FROM dbo.LoanAccount WHERE LNNum = SCOPE_IDENTITY();";
+
+                var accParams = new[] {
+                    new SqlParameter("@CustomerID", userId),
+                    new SqlParameter("@LoanAmount", amount),
+                    new SqlParameter("@StartDate", start),
+                    new SqlParameter("@TenureMonths", months),
+                    new SqlParameter("@LNROI", roi),
+                    new SqlParameter("@EMIAmount", emi),
+                    new SqlParameter("@Status", "Pending")
+                };
+
+                string createdAccountId = db.Database.SqlQuery<string>(sqlAcc, accParams).FirstOrDefault();
+                if (string.IsNullOrEmpty(createdAccountId))
+                {
+                    ModelState.AddModelError("", "Failed to submit loan application.");
+                    return View();
+                }
+
+                ViewBag.SuccessMessage = $"Loan application submitted. Account ID: {createdAccountId}. EMI: {emi:C2} (ROI: {roi}% )";
+                ViewBag.CreatedAccountID = createdAccountId;
+                ViewBag.LoanEMI = emi;
+                ViewBag.LoanROI = roi;
+                return View();
+            }
+            catch (Exception ex)
+            {
+                var inner = ex.InnerException?.Message ?? ex.Message;
+                ModelState.AddModelError("", "Failed to apply for loan: " + inner);
+                return View();
+            }
+        }
+
+        [HttpGet]
+        public ActionResult Transactions(string accountType = null, string accountId = null)
+        {
+            var userId = Session["UserID"] as string;
+            if (string.IsNullOrEmpty(userId))
+            {
+                ModelState.AddModelError("", "User not logged in.");
+                return View();
+            }
+
+            // Load the customer's accounts for selection
+            var savingsAccounts = db.SavingsAccounts.Where(a => a.CustomerID == userId).ToList();
+            var fdAccounts = db.FixedDepositAccounts.Where(a => a.CustomerID == userId).ToList();
+            var loanAccounts = db.LoanAccounts.Where(a => a.CustomerID == userId).ToList();
+
+            ViewBag.SavingsAccounts = savingsAccounts;
+            ViewBag.FDAccounts = fdAccounts;
+            ViewBag.LoanAccounts = loanAccounts;
+
+            if (string.IsNullOrEmpty(accountType) || string.IsNullOrEmpty(accountId))
+            {
+                // No specific account requested - show selection UI
+                return View();
+            }
+
+            accountType = (accountType ?? "").Trim().ToUpper();
+            accountId = (accountId ?? "").Trim();
+
+            try
+            {
+                if (accountType == "SAVINGS")
+                {
+                    var acc = savingsAccounts.FirstOrDefault(a => a.SBAccountID == accountId);
+                    if (acc == null)
+                    {
+                        ModelState.AddModelError("", "Savings account not found or does not belong to you.");
+                        return View();
+                    }
+
+                    var txns = db.SavingsTransactions.Where(t => t.SBAccountID == accountId)
+                                                     .OrderByDescending(t => t.TransactionDate)
+                                                     .ToList();
+
+                    ViewBag.AccountType = "SAVINGS";
+                    ViewBag.Account = acc;
+                    ViewBag.Transactions = txns;
+                    return View();
+                }
+
+                if (accountType == "FD")
+                {
+                    var acc = fdAccounts.FirstOrDefault(a => a.FDAccountID == accountId);
+                    if (acc == null)
+                    {
+                        ModelState.AddModelError("", "Fixed deposit account not found or does not belong to you.");
+                        return View();
+                    }
+
+                    var txns = db.FDTransactions.Where(t => t.FDAccountID == accountId)
+                                                     .OrderByDescending(t => t.TransactionDate)
+                                                     .ToList();
+
+                    ViewBag.AccountType = "FD";
+                    ViewBag.Account = acc;
+                    ViewBag.Transactions = txns;
+                    return View();
+                }
+
+                if (accountType == "LOAN")
+                {
+                    var acc = loanAccounts.FirstOrDefault(a => a.LNAccountID == accountId);
+                    if (acc == null)
+                    {
+                        ModelState.AddModelError("", "Loan account not found or does not belong to you.");
+                        return View();
+                    }
+
+                    var txns = db.LoanTransactions.Where(t => t.LNAccountID == accountId)
+                                                   .OrderByDescending(t => t.EMIDate_Actual)
+                                                   .ToList();
+
+                    ViewBag.AccountType = "LOAN";
+                    ViewBag.Account = acc;
+                    ViewBag.Transactions = txns;
+                    return View();
+                }
+
+                ModelState.AddModelError("", "Unsupported account type. Use SAVINGS, FD or LOAN.");
+            }
+            catch (Exception ex)
+            {
+                var inner = ex.InnerException?.Message ?? ex.Message;
+                ModelState.AddModelError("", "Failed to load transactions: " + inner);
+            }
+
             return View();
         }
 
         // ... other existing actions remain unchanged ...
+
+        // Helper to extract full inner exception messages (useful for DB errors)
+        private string GetInnerExceptionMessages(Exception ex)
+        {
+            if (ex == null) return string.Empty;
+            var messages = new List<string>();
+            var cur = ex;
+            while (cur != null)
+            {
+                messages.Add(cur.Message);
+                cur = cur.InnerException;
+            }
+            return string.Join(" --> ", messages);
+        }
     }
 }

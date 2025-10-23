@@ -4,6 +4,23 @@
     var customers = ViewBag.Customers as List<MVCBank.Models.Customer>;
 }
 
+<div class="alert alert-info" style="max-width:700px;">
+    <strong>Loan Account Rules & Validations:</strong>
+    <ul>
+        <li>Minimum Loan amount is Rs. 10,000</li>
+        <li>Rate of Interest (ROI):
+            <ul>
+                <li>10% for loans up to 5 lakhs</li>
+                <li>9.5% for loans from 5 lakhs to 10 lakhs</li>
+                <li>9% for loans above 10 lakhs</li>
+            </ul>
+        </li>
+        <li>EMI can be maximum 60% of the monthly take home</li>
+        <li>Senior Citizens (age 60+) cannot be sanctioned a loan greater than 1 lakh. ROI for Senior Citizens is 9.5%</li>
+        <li>Account number is auto-generated. EMI and ROI are displayed after account creation.</li>
+    </ul>
+</div>
+
 <h2>Add Loan Account</h2>
 
 @if (!string.IsNullOrEmpty(ViewBag.SuccessMessage))
@@ -63,7 +80,7 @@
         </div>
         <div class="mb-3" style="max-width:300px;">
             <label>DOB</label>
-            <input type="date" name="New_DOB" class="form-control" />
+            <input type="date" name="New_DOB" id="New_DOB" class="form-control" />
         </div>
         <div class="mb-3" style="max-width:300px;">
             <label>PAN</label>
@@ -91,21 +108,24 @@
             <label>Password (optional)</label>
             <input type="text" name="New_Password" class="form-control" />
         </div>
+        <div id="seniorWarning" class="alert alert-warning" style="display:none;max-width:400px;"></div>
     </div>
 
     <hr />
     <div class="mb-3" style="max-width:300px;">
         <label class="form-label">Loan Amount</label>
-        <input type="number" step="0.01" min="10000" name="loanAmount" class="form-control" required />
+        <input type="number" step="0.01" min="10000" name="loanAmount" id="loanAmount" class="form-control" required />
     </div>
     <div class="mb-3" style="max-width:200px;">
         <label class="form-label">Tenure (months)</label>
-        <input type="number" min="1" name="loanTenure" class="form-control" required />
+        <input type="number" min="1" name="loanTenure" id="loanTenure" class="form-control" required />
     </div>
     <div class="mb-3" style="max-width:200px;">
         <label class="form-label">Monthly Take Home</label>
-        <input type="number" step="0.01" min="0" name="monthlyTakeHome" class="form-control" required />
+        <input type="number" step="0.01" min="0" name="monthlyTakeHome" id="monthlyTakeHome" class="form-control" required />
     </div>
+    <div id="emiWarning" class="alert alert-warning" style="display:none;max-width:400px;"></div>
+    <div id="emiInfo" class="alert alert-info" style="display:none;max-width:400px;"></div>
     <!-- ROI and EMI are calculated and shown after submission -->
     <button type="submit" class="btn btn-primary">Create Loan Account</button>
 </form>
@@ -115,13 +135,141 @@
         var opt = document.getElementById('customerOption');
         var existing = document.getElementById('existingBlock');
         var nblock = document.getElementById('newBlock');
+        var loanAmount = document.getElementById('loanAmount');
+        var monthlyTakeHome = document.getElementById('monthlyTakeHome');
+        var emiWarning = document.getElementById('emiWarning');
+        var seniorWarning = document.getElementById('seniorWarning');
+        var dobInput = document.getElementById('New_DOB');
+        var form = document.getElementById('openLoanAccountForm');
+        var tenureInput = document.getElementById('loanTenure');
+        var emiInfo = document.getElementById('emiInfo');
 
         function toggleCustomer(){
             if(opt.value === 'EXISTING'){ existing.style.display = ''; nblock.style.display = 'none'; }
             else { existing.style.display = 'none'; nblock.style.display = ''; }
         }
 
-        opt.addEventListener('change', toggleCustomer);
+        function getAge(dobStr) {
+            if (!dobStr) return 0;
+            var dob = new Date(dobStr);
+            var diff = Date.now() - dob.getTime();
+            var age = new Date(diff).getUTCFullYear() - 1970;
+            return age;
+        }
+
+        function validateSeniorCitizen() {
+            if(opt.value === 'NEW') {
+                var dob = dobInput.value;
+                var age = getAge(dob);
+                var amount = parseFloat(loanAmount.value) || 0;
+                if(age >= 60) {
+                    if(amount > 100000) {
+                        seniorWarning.style.display = '';
+                        seniorWarning.innerText = 'Senior Citizens (age 60+) cannot be sanctioned a loan greater than 1 lakh.';
+                    } else {
+                        seniorWarning.style.display = 'none';
+                    }
+                } else {
+                    seniorWarning.style.display = 'none';
+                }
+            } else {
+                seniorWarning.style.display = 'none';
+            }
+        }
+
+        function validateEMI() {
+            var amount = parseFloat(loanAmount.value) || 0;
+            var tenure = parseInt(document.getElementsByName('loanTenure')[0].value) || 0;
+            var takeHome = parseFloat(monthlyTakeHome.value) || 0;
+            var roi = 0.10;
+            if(amount > 1000000) roi = 0.09;
+            else if(amount >= 500000) roi = 0.095;
+            // Senior citizen ROI
+            if(opt.value === 'NEW' && dobInput.value && getAge(dobInput.value) >= 60) roi = 0.095;
+            // EMI formula: [P x R x (1+R)^N]/[(1+R)^N-1]
+            var r = roi/12;
+            var n = tenure;
+            var emi = n > 0 ? (amount * r * Math.pow(1+r, n)) / (Math.pow(1+r, n)-1) : 0;
+            if(takeHome > 0 && emi > takeHome * 0.6) {
+                emiWarning.style.display = '';
+                emiWarning.innerText = 'EMI exceeds 60% of Monthly Take Home. Please reduce loan amount or increase take home.';
+            } else {
+                emiWarning.style.display = 'none';
+            }
+        }
+
+        function calculateAndShowEMI() {
+            var amount = parseFloat(loanAmount.value) || 0;
+            var tenure = parseInt(tenureInput.value) || 0;
+            var roi = 0.10;
+            if(amount > 1000000) roi = 0.09;
+            else if(amount >= 500000) roi = 0.095;
+            if(opt.value === 'NEW' && dobInput.value && getAge(dobInput.value) >= 60) roi = 0.095;
+            var r = roi/12;
+            var n = tenure;
+            var emi = n > 0 ? (amount * r * Math.pow(1+r, n)) / (Math.pow(1+r, n)-1) : 0;
+            if(amount >= 10000 && tenure > 0) {
+                emiInfo.style.display = '';
+                emiInfo.innerHTML = 'EMI: <strong>' + emi.toFixed(2) + '</strong> | ROI: <strong>' + (roi*100).toFixed(2) + '%</strong>';
+            } else {
+                emiInfo.style.display = 'none';
+            }
+        }
+
+        opt.addEventListener('change', function(){
+            toggleCustomer();
+            validateSeniorCitizen();
+        });
+        if(dobInput) dobInput.addEventListener('change', function(){
+            validateSeniorCitizen();
+            validateEMI();
+            calculateAndShowEMI();
+        });
+        loanAmount.addEventListener('input', function(){
+            validateSeniorCitizen();
+            validateEMI();
+            calculateAndShowEMI();
+        });
+        monthlyTakeHome.addEventListener('input', function(){
+            validateEMI();
+            calculateAndShowEMI();
+        });
+        tenureInput.addEventListener('input', function(){
+            validateEMI();
+            calculateAndShowEMI();
+        });
+
+        form.addEventListener('submit', function(e){
+            // Minimum loan amount
+            if(parseFloat(loanAmount.value) < 10000) {
+                alert('Minimum Loan amount is Rs. 10,000');
+                e.preventDefault();
+                return false;
+            }
+            // EMI validation
+            var amount = parseFloat(loanAmount.value) || 0;
+            var tenure = parseInt(document.getElementsByName('loanTenure')[0].value) || 0;
+            var takeHome = parseFloat(monthlyTakeHome.value) || 0;
+            var roi = 0.10;
+            if(amount > 1000000) roi = 0.09;
+            else if(amount >= 500000) roi = 0.095;
+            if(opt.value === 'NEW' && dobInput.value && getAge(dobInput.value) >= 60) roi = 0.095;
+            var r = roi/12;
+            var n = tenure;
+            var emi = n > 0 ? (amount * r * Math.pow(1+r, n)) / (Math.pow(1+r, n)-1) : 0;
+            if(takeHome > 0 && emi > takeHome * 0.6) {
+                alert('EMI exceeds 60% of Monthly Take Home. Please reduce loan amount or increase take home.');
+                e.preventDefault();
+                return false;
+            }
+            // Senior citizen validation
+            if(opt.value === 'NEW' && dobInput.value && getAge(dobInput.value) >= 60 && amount > 100000) {
+                alert('Senior Citizens (age 60+) cannot be sanctioned a loan greater than 1 lakh.');
+                e.preventDefault();
+                return false;
+            }
+        });
         toggleCustomer();
+        calculateAndShowEMI();
     })();
 </script>

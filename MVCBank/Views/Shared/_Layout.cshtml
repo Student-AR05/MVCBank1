@@ -20,10 +20,16 @@
                 <li class="nav-item"><a class="nav-link" href="@Url.Action("Transfer", "Bank")">Transfer</a></li>
                 <li class="nav-item"><a class="nav-link" href="@Url.Action("Login", "Auth")">Login</a></li>
             </ul>
+            @using (Html.BeginForm("Logout", "Auth", FormMethod.Post, new { @class = "d-flex mb-0" }))
+            {
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-outline-light btn-sm">Logout</button>
+            }
         </div>
     </nav>
 
     <main class="container mt-4">
+        @Html.Partial("_Alerts")
         @RenderBody()
     </main>
 
@@ -32,5 +38,43 @@
     </footer>
 
     @RenderSection("Scripts", required: false)
+
+    <script>
+        // Global client-side error handler to show errors as Bootstrap alerts
+        (function () {
+            function showClientError(message, source, lineno, colno, error) {
+                try {
+                    var container = document.getElementById('client-error-container');
+                    if (!container) {
+                        container = document.createElement('div');
+                        container.id = 'client-error-container';
+                        container.className = 'container position-fixed top-0 start-50 translate-middle-x mt-3';
+                        container.style.zIndex = 1080;
+                        document.body.appendChild(container);
+                    }
+
+                    var alert = document.createElement('div');
+                    alert.className = 'alert alert-danger alert-dismissible fade show shadow';
+                    var title = 'An error occurred';
+                    var detail = message || (error && (error.message || error.toString())) || 'Unknown error';
+                    var location = source ? ('\nSource: ' + source + (lineno ? ':' + lineno : '') + (colno ? ':' + colno : '')) : '';
+                    alert.innerHTML = '<strong>' + title + ':</strong> ' + detail + '<pre class="mb-0 small">' + (location) + '</pre>' +
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
+                    container.appendChild(alert);
+                } catch (e) { /* ignore */ }
+            }
+
+            window.addEventListener('error', function (e) {
+                // Ignore script loading errors silently to avoid duplicate network noise
+                showClientError(e.message, e.filename, e.lineno, e.colno, e.error);
+            });
+
+            window.addEventListener('unhandledrejection', function (e) {
+                var reason = e && e.reason;
+                var message = (reason && (reason.message || reason.toString())) || 'Unhandled promise rejection';
+                showClientError(message, null, null, null, reason);
+            });
+        })();
+    </script>
 </body>
 </html>

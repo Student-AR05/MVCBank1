@@ -4,4 +4,216 @@
 }
 
 <h2>Apply for Loan</h2>
-<p>This is a placeholder page. Implement loan application form here.</p>
+
+@if (!string.IsNullOrEmpty(ViewBag.SuccessMessage))
+{
+    <div class="alert alert-success">@ViewBag.SuccessMessage</div>
+}
+
+@if (ViewBag.CreatedAccountID != null)
+{
+    <div class="alert alert-info">Created Loan Account ID: <strong>@ViewBag.CreatedAccountID</strong></div>
+}
+
+@if (ViewBag.LoanEMI != null)
+{
+    <div class="alert alert-info">EMI: <strong>@ViewBag.LoanEMI</strong> | ROI: <strong>@ViewBag.LoanROI</strong>%</div>
+}
+
+@Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+<form method="post" action="@Url.Action("ApplyLoan", "Customer")" id="applyLoanForm" enctype="multipart/form-data">
+    @Html.AntiForgeryToken()
+
+    <h5>Loan Details</h5>
+    <div class="mb-3" style="max-width:300px;">
+        <label class="form-label">Loan Amount</label>
+        <input type="number" step="0.01" min="10000" name="loanAmount" id="loanAmount" class="form-control" required />
+    </div>
+    <div class="mb-3" style="max-width:200px;">
+        <label class="form-label">Tenure (months)</label>
+        <input type="number" min="1" name="loanTenure" id="loanTenure" class="form-control" required />
+    </div>
+
+    <div class="mb-3" style="max-width:300px;">
+        <label class="form-label">Purpose of Loan</label>
+        <select name="loanPurpose" class="form-control">
+            <option value="Home">Home</option>
+            <option value="Education">Education</option>
+            <option value="Business">Business</option>
+            <option value="Personal">Personal</option>
+            <option value="Other">Other</option>
+        </select>
+    </div>
+
+    <h5 class="mt-3">Applicant Details</h5>
+    <div class="mb-3" style="max-width:400px;">
+        <label class="form-label">Full Name</label>
+        <input type="text" name="applicantName" class="form-control" placeholder="Applicant full name" value="@ViewBag.ApplicantName" />
+    </div>
+    <div class="mb-3" style="max-width:220px;">
+        <label class="form-label">Date of Birth</label>
+        <input type="date" name="dob" class="form-control" value="@ViewBag.DOB" />
+    </div>
+    <div class="mb-3" style="max-width:300px;">
+        <label class="form-label">Employment Type</label>
+        <select name="employmentType" id="employmentType" class="form-control">
+            <option value="Salaried">Salaried</option>
+            <option value="Self-Employed">Self-Employed</option>
+            <option value="Business">Business</option>
+            <option value="Student">Student</option>
+            <option value="Retired">Retired</option>
+        </select>
+    </div>
+
+    <div class="mb-3" style="max-width:400px;">
+        <label class="form-label">Employer / Business Name</label>
+        <input type="text" name="employerName" class="form-control" placeholder="Employer or business name" />
+    </div>
+
+    <h5 class="mt-3">Income & Liabilities</h5>
+    <div class="mb-3" style="max-width:300px;">
+        <label class="form-label">Gross Monthly Income</label>
+        <input type="number" step="0.01" min="0" name="grossMonthlyIncome" id="grossMonthlyIncome" class="form-control" />
+    </div>
+    <div class="mb-3" style="max-width:300px;">
+        <label class="form-label">Net Monthly Income</label>
+        <input type="number" step="0.01" min="0" name="netMonthlyIncome" id="netMonthlyIncome" class="form-control" required />
+    </div>
+    <div class="mb-3" style="max-width:300px;">
+        <label class="form-label">Existing Monthly EMIs</label>
+        <input type="number" step="0.01" min="0" name="existingEmis" id="existingEmis" class="form-control" />
+    </div>
+
+    <h5 class="mt-3">Identity & Contact</h5>
+    <div class="mb-3" style="max-width:300px;">
+        <label class="form-label">PAN Number</label>
+        <input type="text" name="panNumber" class="form-control" placeholder="PAN" value="@ViewBag.PAN" />
+    </div>
+    <div class="mb-3" style="max-width:300px;">
+        <label class="form-label">Aadhaar Number</label>
+        <input type="text" name="aadhaarNumber" class="form-control" placeholder="Aadhaar" />
+    </div>
+    <div class="mb-3" style="max-width:300px;">
+        <label class="form-label">Mobile Number</label>
+        <input type="tel" name="mobile" class="form-control" placeholder="Mobile number" value="@ViewBag.Mobile" />
+    </div>
+    <div class="mb-3" style="max-width:400px;">
+        <label class="form-label">Email</label>
+        <input type="email" name="email" class="form-control" placeholder="Email address" />
+    </div>
+
+    <div class="mb-3" style="max-width:600px;">
+        <label class="form-label">Residential Address</label>
+        <textarea name="residentialAddress" class="form-control" rows="3" placeholder="Full postal address">@ViewBag.Address</textarea>
+    </div>
+
+    <h5 class="mt-3">Supporting Documents (upload at branch or attach)</h5>
+    <div class="mb-3" style="max-width:600px;">
+        <ul>
+            <li>Identity proof (PAN / Aadhaar)</li>
+            <li>Address proof (Utility bill / Passport / Aadhaar)</li>
+            <li>Income proof (Salary slips / ITR / Bank statements)</li>
+            <li>Bank account statement (last 6 months)</li>
+        </ul>
+        <small class="text-muted">You can upload scanned copies at branch or attach using the portal if available.</small>
+    </div>
+
+    <div id="emiWarning" class="alert alert-warning" style="display:none;max-width:400px;"></div>
+    <div id="emiInfo" class="alert alert-info" style="display:none;max-width:600px;"></div>
+
+    <button type="submit" class="btn btn-primary">Submit Loan Application</button>
+</form>
+
+<script>
+    (function(){
+        var loanAmount = document.getElementById('loanAmount');
+        var monthlyTakeHome = document.getElementById('netMonthlyIncome');
+        var emiWarning = document.getElementById('emiWarning');
+        var form = document.getElementById('applyLoanForm');
+        var tenureInput = document.getElementById('loanTenure');
+        var emiInfo = document.getElementById('emiInfo');
+        var existingEmis = document.getElementById('existingEmis');
+
+        function computeEMI(amount, tenure, roi) {
+            var r = roi/12;
+            var n = tenure;
+            if(n <= 0) return 0;
+            return (amount * r * Math.pow(1+r, n)) / (Math.pow(1+r, n)-1);
+        }
+
+        function validateEMI() {
+            var amount = parseFloat(loanAmount.value) || 0;
+            var tenure = parseInt(document.getElementsByName('loanTenure')[0].value) || 0;
+            var takeHome = parseFloat(monthlyTakeHome.value) || 0;
+            var exEmis = parseFloat(existingEmis.value) || 0;
+            var roi = 0.10;
+            if(amount > 1000000) roi = 0.09;
+            else if(amount >= 500000) roi = 0.095;
+            var emi = computeEMI(amount, tenure, roi);
+            var totalObligation = emi + exEmis;
+            var percentOfTakeHome = takeHome > 0 ? (totalObligation / takeHome) * 100 : 0;
+
+            if(takeHome > 0 && percentOfTakeHome > 60) {
+                emiWarning.style.display = '';
+                emiWarning.innerText = 'Total EMI including existing obligations exceeds 60% of Net Monthly Income. Consider reducing loan amount or tenure, or increase income.';
+            } else {
+                emiWarning.style.display = 'none';
+            }
+        }
+
+        function calculateAndShowEMI() {
+            var amount = parseFloat(loanAmount.value) || 0;
+            var tenure = parseInt(tenureInput.value) || 0;
+            var roi = 0.10;
+            if(amount > 1000000) roi = 0.09;
+            else if(amount >= 500000) roi = 0.095;
+            var emi = computeEMI(amount, tenure, roi);
+            var totalPayable = emi * tenure;
+            var totalInterest = totalPayable - amount;
+            var takeHome = parseFloat(monthlyTakeHome ? monthlyTakeHome.value : 0) || 0;
+            var exEmis = parseFloat(existingEmis ? existingEmis.value : 0) || 0;
+            var percentOfTakeHome = takeHome > 0 ? ((emi + exEmis) / takeHome) * 100 : 0;
+
+            if(amount >= 10000 && tenure > 0) {
+                emiInfo.style.display = '';
+                emiInfo.innerHTML = '<strong>Estimated EMI:</strong> ' + emi.toFixed(2) +
+                    ' | <strong>ROI:</strong> ' + (roi*100).toFixed(2) + '%'+
+                    ' | <strong>Total Payable:</strong> ' + totalPayable.toFixed(2) +
+                    ' | <strong>Total Interest:</strong> ' + totalInterest.toFixed(2) +
+                    ' | <strong>EMI as % of Net Income:</strong> ' + percentOfTakeHome.toFixed(2) + '%';
+            } else {
+                emiInfo.style.display = 'none';
+            }
+        }
+
+        loanAmount && loanAmount.addEventListener('input', function(){ validateEMI(); calculateAndShowEMI(); });
+        monthlyTakeHome && monthlyTakeHome.addEventListener('input', function(){ validateEMI(); calculateAndShowEMI(); });
+        tenureInput && tenureInput.addEventListener('input', function(){ validateEMI(); calculateAndShowEMI(); });
+        existingEmis && existingEmis.addEventListener('input', function(){ validateEMI(); calculateAndShowEMI(); });
+
+        form.addEventListener('submit', function(e){
+            if(parseFloat(loanAmount.value) < 10000) {
+                alert('Minimum Loan amount is Rs. 10,000');
+                e.preventDefault();
+                return false;
+            }
+            var amount = parseFloat(loanAmount.value) || 0;
+            var tenure = parseInt(document.getElementsByName('loanTenure')[0].value) || 0;
+            var takeHome = parseFloat(monthlyTakeHome.value) || 0;
+            var exEmis = parseFloat(existingEmis.value) || 0;
+            var roi = 0.10;
+            if(amount > 1000000) roi = 0.09;
+            else if(amount >= 500000) roi = 0.095;
+            var emi = computeEMI(amount, tenure, roi);
+            var totalObligation = emi + exEmis;
+            if(takeHome > 0 && (totalObligation / takeHome) * 100 > 60) {
+                alert('Total EMI including existing obligations exceeds 60% of Net Monthly Income. Please adjust values.');
+                e.preventDefault();
+                return false;
+            }
+        });
+
+        calculateAndShowEMI();
+    })();
+</script>

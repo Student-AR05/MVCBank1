@@ -30,8 +30,9 @@
 {
     <h4 class="mt-4">Transactions for @ViewBag.AccountType - @((ViewBag.Account != null) ? (ViewBag.Account.SBAccountID ?? ViewBag.Account.FDAccountID) : "")</h4>
 
-    var txns = ViewBag.Transactions as IEnumerable<dynamic>;
-    if (txns.Any())
+    @{ var txns = ViewBag.Transactions as IEnumerable<dynamic>; }
+
+    @if (txns != null && txns.Any())
     {
         <table class="table table-striped mt-2">
             <thead>

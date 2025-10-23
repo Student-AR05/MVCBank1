@@ -88,6 +88,16 @@ namespace MVCBank.Controllers
                         return View();
                     }
 
+                    // Age must be 18+
+                    var today = DateTime.Today;
+                    int age = today.Year - dob.Year;
+                    if (dob > today.AddYears(-age)) age--;
+                    if (age < 18)
+                    {
+                        ModelState.AddModelError("", "Customer must be at least 18 years old.");
+                        return View();
+                    }
+
                     bool gender = false;
                     if (!bool.TryParse(genderStr, out gender)) gender = false;
 
@@ -214,6 +224,14 @@ namespace MVCBank.Controllers
                         return View();
                     }
 
+                    // Prevent closing savings account if customer has any loan accounts (non-closed)
+                    var hasActiveLoan = db.LoanAccounts.Any(l => l.CustomerID == acc.CustomerID && (l.Status ?? "").ToLower() != "closed");
+                    if (hasActiveLoan)
+                    {
+                        ModelState.AddModelError("", "Cannot close savings account because the customer has an existing loan account.");
+                        return View();
+                    }
+
                     acc.Status = "Closed";
                     db.SaveChanges();
 
@@ -324,6 +342,13 @@ namespace MVCBank.Controllers
             if (string.IsNullOrEmpty(accountId) || amount <= 0)
             {
                 ModelState.AddModelError("", "Valid Account ID and amount must be provided for withdrawal.");
+                return View();
+            }
+
+            // Add minimum withdrawal validation
+            if (amount < 100)
+            {
+                ModelState.AddModelError("", "Minimum withdrawal amount is Rs. 100.");
                 return View();
             }
 
@@ -509,6 +534,16 @@ namespace MVCBank.Controllers
                         return View();
                     }
 
+                    // Age must be 18+
+                    var today = DateTime.Today;
+                    int age = today.Year - dob.Year;
+                    if (dob > today.AddYears(-age)) age--;
+                    if (age < 18)
+                    {
+                        ModelState.AddModelError("", "Customer must be at least 18 years old.");
+                        return View();
+                    }
+
                     bool gender = false;
                     if (!bool.TryParse(genderStr, out gender)) gender = false;
 
@@ -664,7 +699,7 @@ namespace MVCBank.Controllers
                         new SqlParameter("@EndDate", end),
                         new SqlParameter("@DepositAmount", amount),
                         new SqlParameter("@FDROI", roi),
-                        new SqlParameter("@Status", "Active")
+                        new SqlParameter("@Status", "Active") // create FD Active by default
                     };
                     db.Database.ExecuteSqlCommand(sql, parameters);
 
@@ -712,21 +747,8 @@ namespace MVCBank.Controllers
                                StartDate = null
                            }).ToList();
 
-            var fds = (from a in db.FixedDepositAccounts
-                       join c in db.Customers on a.CustomerID equals c.CustID
-                       where (a.Status ?? "").ToLower() == "pending"
-                       select new MVCBank.Models.ViewModels.PendingAccountRequestViewModel
-                       {
-                           AccountID = a.FDAccountID,
-                           AccountType = "FD",
-                           CustomerID = c.CustID,
-                           CustomerName = c.CustName,
-                           Amount = a.DepositAmount,
-                           StartDate = a.StartDate
-                       }).ToList();
-
+            // Only include savings pending requests for SavingEmployee
             pendingList.AddRange(savings);
-            pendingList.AddRange(fds);
 
             var ordered = pendingList
                 .OrderBy(p => p.AccountType)
@@ -789,6 +811,203 @@ namespace MVCBank.Controllers
             }
 
             return RedirectToAction("PendingRequests");
+        }
+
+        // Search customers (for UI convenience) - similar to Manager
+        [HttpGet]
+        public JsonResult SearchCustomers(string q)
+        {
+            q = (q ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(q))
+            {
+                return Json(new { results = new object[0] }, JsonRequestBehavior.AllowGet);
+            }
+
+            var lowered = q.ToLower();
+            var matches = db.Customers
+                            .Where(c => c.CustID.ToLower().Contains(lowered) || c.CustName.ToLower().Contains(lowered) || c.PAN.ToLower().Contains(lowered))
+                            .OrderBy(c => c.CustName)
+                            .Take(50)
+                            .Select(c => new {
+                                id = c.CustID,
+                                text = c.CustName + " (" + c.CustID + ")",
+                                pan = c.PAN,
+                                phone = c.PhoneNumber
+                            })
+                            .ToList();
+
+            return Json(new { results = matches }, JsonRequestBehavior.AllowGet);
+        }
+
+        // Remove customer - GET with optional search (same behavior as Manager)
+        [HttpGet]
+        public ActionResult RemoveCustomer(string q)
+        {
+            q = (q ?? string.Empty).Trim();
+            IQueryable<Customer> query = db.Customers;
+            if (!string.IsNullOrEmpty(q))
+            {
+                var lowered = q.ToLower();
+                query = query.Where(c => c.CustID.ToLower().Contains(lowered)
+                                       || c.CustName.ToLower().Contains(lowered)
+                                       || c.PAN.ToLower().Contains(lowered)
+                                       || (c.PhoneNumber ?? "").ToLower().Contains(lowered));
+                ViewBag.Query = q;
+            }
+
+            var customers = query.OrderBy(c => c.CustName).Take(200).ToList();
+            ViewBag.Customers = customers;
+            return View();
+        }
+
+        // Remove customer - POST
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [ActionName("RemoveCustomer")]
+        public ActionResult RemoveCustomerPost(string custId)
+        {
+            if (string.IsNullOrEmpty(custId))
+            {
+                ModelState.AddModelError("", "Select a customer to remove.");
+                ViewBag.Customers = db.Customers.OrderBy(c => c.CustName).Take(200).ToList();
+                return View();
+            }
+
+            try
+            {
+                var customer = db.Customers.FirstOrDefault(c => c.CustID == custId);
+                if (customer == null)
+                {
+                    ModelState.AddModelError("", "Customer not found.");
+                    ViewBag.Customers = db.Customers.OrderBy(c => c.CustName).Take(200).ToList();
+                    return View();
+                }
+
+                // optional: prevent delete when accounts exist
+                bool hasAccounts = db.SavingsAccounts.Any(a => a.CustomerID == custId)
+                                 || db.FixedDepositAccounts.Any(a => a.CustomerID == custId)
+                                 || db.LoanAccounts.Any(a => a.CustomerID == custId);
+                if (hasAccounts)
+                {
+                    ModelState.AddModelError("", "Cannot remove customer with existing accounts. Close accounts first.");
+                    ViewBag.Customers = db.Customers.OrderBy(c => c.CustName).Take(200).ToList();
+                    return View();
+                }
+
+                db.Customers.Remove(customer);
+                db.SaveChanges();
+
+                ViewBag.SuccessMessage = $"Customer {custId} removed successfully.";
+            }
+            catch (SqlException sqlEx)
+            {
+                // FK violation
+                if (sqlEx.Number == 547)
+                {
+                    ModelState.AddModelError("", "Cannot remove customer due to related records (accounts/transactions). Close accounts first.");
+                }
+                else
+                {
+                    ModelState.AddModelError("", "Failed to remove customer: " + (sqlEx.InnerException?.Message ?? sqlEx.Message));
+                }
+            }
+            catch (Exception ex)
+            {
+                ModelState.AddModelError("", "Failed to remove customer: " + (ex.InnerException?.Message ?? ex.Message));
+            }
+
+            ViewBag.Customers = db.Customers.OrderBy(c => c.CustName).Take(200).ToList();
+            return View();
+        }
+
+        // Edit Customer - GET
+        [HttpGet]
+        public ActionResult EditCustomer(string id)
+        {
+            if (string.IsNullOrEmpty(id)) return RedirectToAction("RemoveCustomer");
+            var c = db.Customers.FirstOrDefault(x => x.CustID == id);
+            if (c == null) return RedirectToAction("RemoveCustomer");
+            var vm = new MVCBank.Models.ViewModels.CustomerEditViewModel
+            {
+                CustID = c.CustID,
+                CustName = c.CustName,
+                DOB = c.DOB,
+                PAN = c.PAN,
+                PhoneNumber = c.PhoneNumber,
+                Address = c.Address,
+                Gender = c.Gender
+            };
+            return View(vm);
+        }
+
+        // Edit Customer - POST
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult EditCustomer(MVCBank.Models.ViewModels.CustomerEditViewModel model)
+        {
+            if (!ModelState.IsValid) return View(model);
+            // Check for duplicate PAN
+            if (db.Customers.Any(x => x.PAN == model.PAN && x.CustID != model.CustID))
+            {
+                ModelState.AddModelError("PAN", "PAN already exists for another customer.");
+                return View(model);
+            }
+
+            // Enforce age >= 18
+            var today = DateTime.Today;
+            int age = today.Year - model.DOB.Year;
+            if (model.DOB > today.AddYears(-age)) age--;
+            if (age < 18)
+            {
+                ModelState.AddModelError("DOB", "Customer must be at least 18 years old.");
+                return View(model);
+            }
+
+            try
+            {
+                var rows = db.Database.ExecuteSqlCommand(
+                    @"UPDATE dbo.Customer
+                      SET CustName = @CustName,
+                          DOB = @DOB,
+                          PAN = @PAN,
+                          PhoneNumber = @PhoneNumber,
+                          Address = @Address,
+                          Gender = @Gender
+                      WHERE CustID = @CustID",
+                    new SqlParameter("@CustName", (object)model.CustName ?? DBNull.Value),
+                    new SqlParameter("@DOB", model.DOB),
+                    new SqlParameter("@PAN", (object)model.PAN ?? DBNull.Value),
+                    new SqlParameter("@PhoneNumber", (object)model.PhoneNumber ?? DBNull.Value),
+                    new SqlParameter("@Address", (object)model.Address ?? DBNull.Value),
+                    new SqlParameter("@Gender", model.Gender),
+                    new SqlParameter("@CustID", model.CustID)
+                );
+
+                if (rows <= 0)
+                {
+                    ModelState.AddModelError("", "Customer not found or not updated.");
+                    return View(model);
+                }
+
+                ViewBag.SuccessMessage = "Customer updated successfully.";
+            }
+            catch (SqlException sqlEx)
+            {
+                var msg = sqlEx.InnerException?.Message ?? sqlEx.Message;
+                ModelState.AddModelError("", "Failed to update customer: " + msg);
+            }
+            catch (Exception ex)
+            {
+                string errorMsg = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    errorMsg += " --> " + inner.Message;
+                    inner = inner.InnerException;
+                }
+                ModelState.AddModelError("", "Failed to update customer: " + errorMsg);
+            }
+            return View(model);
         }
 
         private string GenerateRandomPassword(int length)

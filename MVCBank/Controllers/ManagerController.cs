@@ -187,6 +187,16 @@ namespace MVCBank.Controllers
                         return View();
                     }
 
+                    // Age must be 18+
+                    var today = DateTime.Today;
+                    int age = today.Year - dob.Year;
+                    if (dob > today.AddYears(-age)) age--;
+                    if (age < 18)
+                    {
+                        ModelState.AddModelError("", "Customer must be at least 18 years old.");
+                        return View();
+                    }
+
                     bool gender = false;
                     if (!bool.TryParse(genderStr, out gender)) gender = false;
 
@@ -342,7 +352,7 @@ namespace MVCBank.Controllers
                         new SqlParameter("@EndDate", end),
                         new SqlParameter("@DepositAmount", amount),
                         new SqlParameter("@FDROI", roi),
-                        new SqlParameter("@Status", "Active")
+                        new SqlParameter("@Status", "Active") // create FD Active by default
                     };
                     db.Database.ExecuteSqlCommand(sql, parameters);
 
@@ -441,6 +451,14 @@ namespace MVCBank.Controllers
                 return View();
             }
 
+            // Enforce name regex same as registration
+            var namePattern = new Regex("^[A-Za-z][A-Za-z ]{1,}$");
+            if (!namePattern.IsMatch(name))
+            {
+                ModelState.AddModelError("EmpName", "Name must contain only letters and spaces, min 2 characters.");
+                return View();
+            }
+
             if (!string.IsNullOrEmpty(pan) && db.Employees.Any(e => e.PAN == pan))
             {
                 ModelState.AddModelError("", "An employee with this PAN already exists.");
@@ -470,7 +488,6 @@ namespace MVCBank.Controllers
             {
                 db.Database.ExecuteSqlCommand(sql, parameters);
 
-                // fetch created employee by PAN if provided, otherwise by name (best-effort)
                 Employee created = null;
                 if (!string.IsNullOrEmpty(pan)) created = db.Employees.FirstOrDefault(e => e.PAN == pan);
                 if (created == null) created = db.Employees.FirstOrDefault(e => e.EmpName == name && e.DeptID == deptId);
@@ -1059,6 +1076,16 @@ namespace MVCBank.Controllers
             if (db.Customers.Any(x => x.PAN == model.PAN && x.CustID != model.CustID))
             {
                 ModelState.AddModelError("PAN", "PAN already exists for another customer.");
+                return View(model);
+            }
+
+            // Enforce age >= 18
+            var today = DateTime.Today;
+            int age = today.Year - model.DOB.Year;
+            if (model.DOB > today.AddYears(-age)) age--;
+            if (age < 18)
+            {
+                ModelState.AddModelError("DOB", "Customer must be at least 18 years old.");
                 return View(model);
             }
 
