@@ -19,6 +19,10 @@
 {
     <div class="alert alert-info">Maturity Amount: <strong>@ViewBag.FDMaturityAmount</strong> | ROI: <strong>@ViewBag.FDROI</strong>% | Maturity Date: <strong>@ViewBag.FDMaturityDate</strong></div>
 }
+@if (ViewBag.LoanEMI != null)
+{
+    <div class="alert alert-info">EMI: <strong>@ViewBag.LoanEMI</strong> | ROI: <strong>@ViewBag.LoanROI</strong>%</div>
+}
 @if (ViewBag.NewCustomerPassword != null)
 {
     <div class="alert alert-info">New Customer Password: <strong>@ViewBag.NewCustomerPassword</strong></div>
@@ -67,10 +71,11 @@
         <div class="mb-3" style="max-width:500px;"><label>Name</label><input type="text" name="New_CustName" class="form-control" /></div>
         <div class="mb-3" style="max-width:300px;"><label>DOB</label><input type="date" name="New_DOB" id="New_DOB" class="form-control" max="@DateTime.Today.AddYears(-18).ToString("yyyy-MM-dd")" /></div>
         <div class="mb-3" style="max-width:300px;"><label>PAN</label><input type="text" name="New_PAN" class="form-control" /></div>
-        <div class="mb-3" style="max-width:300px;"><label>Phone</label><input type="text" name="New_PhoneNumber" class="form-control" /></div>
+        <div class="mb-3" style="max-width:300px;"><label>Phone</label><input type="text" name="New_PhoneNumber" class="form-control" pattern="\d{10}" title="10 digit phone number" maxlength="10" /></div>
         <div class="mb-3"><label>Gender</label><br /><label><input type="radio" name="New_Gender" value="true" /> Male</label> <label class="ms-3"><input type="radio" name="New_Gender" value="false" /> Female</label></div>
         <div class="mb-3"><label>Address</label><textarea name="New_Address" class="form-control"></textarea></div>
         <div class="mb-3" style="max-width:300px;"><label>Password (optional)</label><input type="text" name="New_Password" class="form-control" /></div>
+        <div id="seniorWarning" class="alert alert-warning" style="display:none;max-width:400px;"></div>
     </div>
 
     <hr />
@@ -103,9 +108,11 @@
     </div>
 
     <div id="loanFields" style="display:none;">
-        <div class="mb-3" style="max-width:300px;"><label>Loan Amount</label><input type="number" step="0.01" min="0" name="loanAmount" class="form-control" /></div>
-        <div class="mb-3" style="max-width:200px;"><label>Tenure (months)</label><input type="number" min="1" name="loanTenure" class="form-control" /></div>
-        <div class="mb-3" style="max-width:200px;"><label>ROI</label><input type="number" step="0.01" min="0" name="loanROI" class="form-control" /></div>
+        <div class="mb-3" style="max-width:300px;"><label>Loan Amount</label><input type="number" step="0.01" min="10000" name="loanAmount" id="loanAmount" class="form-control" /></div>
+        <div class="mb-3" style="max-width:200px;"><label>Tenure (months)</label><input type="number" min="1" name="loanTenure" id="loanTenure" class="form-control" /></div>
+        <div class="mb-3" style="max-width:200px;"><label>Monthly Take Home</label><input type="number" step="0.01" min="0" name="monthlyTakeHome" id="monthlyTakeHome" class="form-control" /></div>
+        <div id="emiWarning" class="alert alert-warning" style="display:none;max-width:400px;"></div>
+        <div id="emiInfo" class="alert alert-info" style="display:none;max-width:600px;"></div>
     </div>
 
     <button type="submit" class="btn btn-primary">Create</button>
@@ -128,6 +135,13 @@
     var fdSeniorInfo = document.getElementById('fdSeniorInfo');
     var existingCustomer = document.getElementById('ExistingCustomerID');
     var newDOB = document.getElementById('New_DOB');
+
+    var loanAmount = document.getElementById('loanAmount');
+    var loanTenure = document.getElementById('loanTenure');
+    var monthlyTakeHome = document.getElementById('monthlyTakeHome');
+    var emiWarning = document.getElementById('emiWarning');
+    var emiInfo = document.getElementById('emiInfo');
+    var seniorWarning = document.getElementById('seniorWarning');
 
     function getSelectedDOB() {
         if(opt.value === 'EXISTING') {
@@ -183,22 +197,63 @@
         fdMaturityDate.value = maturityDate.toISOString().slice(0,10);
     }
 
+    function computeEMI() {
+        var amount = parseFloat(loanAmount.value) || 0;
+        var tenure = parseInt(loanTenure.value) || 0;
+        var takeHome = parseFloat(monthlyTakeHome.value) || 0;
+        var roi = 0.10;
+        if(amount > 1000000) roi = 0.09;
+        else if(amount >= 500000) roi = 0.095;
+        var age = getAge(getSelectedDOB());
+        if(age >= 60) roi = 0.095; // senior ROI
+
+        var r = roi/12;
+        var n = tenure;
+        var emi = n > 0 ? (amount * r * Math.pow(1+r, n)) / (Math.pow(1+r, n)-1) : 0;
+
+        if(takeHome > 0 && emi > takeHome * 0.6) {
+            emiWarning.style.display = '';
+            emiWarning.innerText = 'EMI exceeds 60% of Monthly Take Home. Please adjust values.';
+        } else {
+            emiWarning.style.display = 'none';
+        }
+
+        if(amount >= 10000 && tenure > 0) {
+            emiInfo.style.display = '';
+            emiInfo.innerHTML = '<strong>Estimated EMI:</strong> ' + emi.toFixed(2)
+                + ' | <strong>ROI:</strong> ' + (roi*100).toFixed(2) + '%';
+        } else {
+            emiInfo.style.display = 'none';
+        }
+
+        if(age >= 60 && amount > 100000) {
+            seniorWarning.style.display = '';
+            seniorWarning.innerText = 'Senior Citizens cannot be sanctioned a loan greater than 1 lakh.';
+        } else {
+            seniorWarning.style.display = 'none';
+        }
+    }
+
     fdAmount && fdAmount.addEventListener('input', calcFD);
     fdDuration && fdDuration.addEventListener('input', calcFD);
-    existingCustomer && existingCustomer.addEventListener('change', calcFD);
-    newDOB && newDOB.addEventListener('change', calcFD);
+    existingCustomer && existingCustomer.addEventListener('change', function(){ calcFD(); computeEMI(); });
+    newDOB && newDOB.addEventListener('change', function(){ calcFD(); computeEMI(); });
+
+    loanAmount && loanAmount.addEventListener('input', computeEMI);
+    loanTenure && loanTenure.addEventListener('input', computeEMI);
+    monthlyTakeHome && monthlyTakeHome.addEventListener('input', computeEMI);
 
     function toggleCustomer(){
         if(opt.value === 'EXISTING'){ existing.style.display = ''; nblock.style.display = 'none'; }
         else { existing.style.display = 'none'; nblock.style.display = ''; }
-        calcFD();
+        calcFD(); computeEMI();
     }
     function toggleAccount(){
         var v = acc.value;
         savings.style.display = v==='SAVINGS' ? '' : 'none';
         fd.style.display = v==='FD' ? '' : 'none';
         loan.style.display = v==='LOAN' ? '' : 'none';
-        calcFD();
+        calcFD(); computeEMI();
     }
     opt.addEventListener('change', toggleCustomer);
     acc.addEventListener('change', toggleAccount);

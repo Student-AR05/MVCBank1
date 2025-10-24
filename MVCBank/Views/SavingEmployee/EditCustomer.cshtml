@@ -33,7 +33,8 @@
     </div>
     <div class="mb-3">
         @Html.LabelFor(m => m.PhoneNumber, new { @class = "form-label" })
-        @Html.TextBoxFor(m => m.PhoneNumber, new { @class = "form-control" })
+        @Html.TextBoxFor(m => m.PhoneNumber, new { @class = "form-control", pattern = "\\d{10}", title = "10 digit phone number" })
+        @Html.ValidationMessageFor(m => m.PhoneNumber, "", new { @class = "text-danger" })
     </div>
     <div class="mb-3">
         @Html.LabelFor(m => m.Address, new { @class = "form-label" })

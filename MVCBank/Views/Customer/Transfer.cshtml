@@ -1,0 +1,63 @@
+@{
+    ViewBag.Title = "Transfer Money";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<h2>Transfer Money</h2>
+
+@Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+@if (!string.IsNullOrEmpty(ViewBag.SuccessMessage as string))
+{
+    <div class="alert alert-success">@ViewBag.SuccessMessage</div>
+}
+@if (!string.IsNullOrEmpty(ViewBag.ErrorMessage as string))
+{
+    <div class="alert alert-danger">@ViewBag.ErrorMessage</div>
+}
+
+<div class="card" style="max-width:600px;">
+    <div class="card-body">
+        <div class="mb-3">
+            <label class="form-label">From Savings Account</label>
+            <input type="text" class="form-control" value="@ViewBag.FromAccount" readonly />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Available Balance</label>
+            <input type="text" class="form-control" value="@((ViewBag.FromBalance ?? 0m).ToString("0.00"))" readonly />
+        </div>
+
+        @using (Html.BeginForm("Transfer", "Customer", FormMethod.Post))
+        {
+            @Html.AntiForgeryToken()
+            <div class="mb-3">
+                <label class="form-label">Amount (Rs.)</label>
+                <input type="number" step="0.01" min="101" class="form-control" name="amount" required />
+                <div class="form-text">Minimum transfer amount is Rs. 100</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">To Savings Account ID</label>
+                <input type="text" class="form-control" name="toAccountId" placeholder="SBxxxxxx" required />
+            </div>
+            <button type="submit" class="btn btn-primary">Transfer</button>
+            <a class="btn btn-secondary" href="@Url.Action("Dashboard", "Customer")">Cancel</a>
+        }
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function(){
+    var amt = document.querySelector('input[name="amount"]');
+    if(amt){
+        amt.addEventListener('input', function(){
+            if(parseFloat(this.value||0) <= 100){
+                this.setCustomValidity('Amount must be greater than Rs. 100');
+            } else {
+                this.setCustomValidity('');
+            }
+        });
+    }
+})();
+</script>
+}

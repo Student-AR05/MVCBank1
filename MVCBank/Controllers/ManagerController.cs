@@ -206,6 +206,14 @@ namespace MVCBank.Controllers
                         return View();
                     }
 
+                    // 10-digit phone validation
+                    var phonePattern = new Regex("^\\d{10}$");
+                    if (!phonePattern.IsMatch(phone ?? string.Empty))
+                    {
+                        ModelState.AddModelError("", "Phone number must be exactly 10 digits for new customer.");
+                        return View();
+                    }
+
                     var panPattern = new Regex("^[A-Z]{4}[0-9]{4}$");
                     if (!panPattern.IsMatch(pan))
                     {
@@ -220,7 +228,7 @@ namespace MVCBank.Controllers
                     }
 
                     string pwd = string.IsNullOrEmpty(providedPassword) ? GenerateRandomPassword(8) : providedPassword;
-                    var pwdBytes = System.Text.Encoding.UTF8.GetBytes(pwd);
+                    var pwdBytes = Encoding.UTF8.GetBytes(pwd);
 
                     var sql = @"INSERT INTO dbo.Customer (CustName, DOB, PAN, PhoneNumber, Gender, Address, CustPassword)
                                 VALUES (@CustName, @DOB, @PAN, @PhoneNumber, @Gender, @Address, @CustPassword)";
@@ -251,6 +259,13 @@ namespace MVCBank.Controllers
                 // Create account depending on accountType
                 if (accountType == "SAVINGS")
                 {
+                    // Updated: allow new savings account if previous is Closed
+                    if (db.SavingsAccounts.Any(a => a.CustomerID == custId && ((a.Status ?? "").ToLower() != "closed")))
+                    {
+                        ModelState.AddModelError("", "A savings account already exists for this customer (Active or Pending). Close it first to open a new one.");
+                        return View();
+                    }
+
                     decimal initial = 0;
                     decimal.TryParse(form["initialDeposit"], out initial);
                     if (initial < 1000)
@@ -272,11 +287,9 @@ namespace MVCBank.Controllers
                     }
                     catch (SqlException sqlex)
                     {
-                        // 2601 and 2627 indicate duplicate key / unique constraint violations
                         if (sqlex.Number == 2601 || sqlex.Number == 2627)
                         {
-                            // find existing savings account for this customer and show friendly message
-                            var existing = db.SavingsAccounts.FirstOrDefault(a => a.CustomerID == custId);
+                            var existing = db.SavingsAccounts.FirstOrDefault(a => a.CustomerID == custId && ((a.Status ?? "").ToLower() != "closed"));
                             if (existing != null)
                             {
                                 ModelState.AddModelError("", $"A savings account already exists for this customer (Account ID: {existing.SBAccountID}).");
@@ -289,7 +302,7 @@ namespace MVCBank.Controllers
                             return View();
                         }
 
-                        throw; // rethrow other SqlExceptions
+                        throw;
                     }
 
                     var acc = db.SavingsAccounts.FirstOrDefault(a => a.CustomerID == custId);
@@ -372,22 +385,83 @@ namespace MVCBank.Controllers
 
                 if (accountType == "LOAN")
                 {
-                    decimal amount = 0; int months = 0; decimal roi = 0;
-                    decimal.TryParse(form["loanAmount"], out amount);
-                    int.TryParse(form["loanTenure"], out months);
-                    decimal.TryParse(form["loanROI"], out roi);
-
-                    if (amount < 10000)
+                    // Enforce: customer must have an active savings account before opening a loan
+                    var hasActiveSavings = db.SavingsAccounts.Any(a => a.CustomerID == custId && ((a.Status ?? "").ToLower() == "active"));
+                    if (!hasActiveSavings)
                     {
-                        ModelState.AddModelError("", "Minimum loan amount is 10000.");
+                        ModelState.AddModelError("", "Customer must have an active savings account before opening a loan.");
                         return View();
                     }
 
-                    decimal emi = months == 0 ? 0 : Math.Round((amount * roi / 100) / months, 2);
-                    var start = DateTime.Now.Date;
+                    decimal amount = 0; int months = 0; decimal monthlyTakeHome = 0; decimal roi = 0;
+                    decimal.TryParse(form["loanAmount"], out amount);
+                    int.TryParse(form["loanTenure"], out months);
+                    decimal.TryParse(form["monthlyTakeHome"], out monthlyTakeHome);
 
-                    var sql = @"INSERT INTO dbo.LoanAccount (CustomerID, LoanAmount, StartDate, TenureMonths, LNROI, EMIAmount, Status) VALUES (@CustomerID, @LoanAmount, @StartDate, @TenureMonths, @LNROI, @EMIAmount, @Status)";
-                    var parameters = new[] {
+                    if (amount < 10000)
+                    {
+                        ModelState.AddModelError("", "Minimum loan amount is 10,000.");
+                        return View();
+                    }
+                    if (months <= 0)
+                    {
+                        ModelState.AddModelError("", "Loan tenure (months) is required.");
+                        return View();
+                    }
+                    if (monthlyTakeHome <= 0)
+                    {
+                        ModelState.AddModelError("", "Monthly take home is required.");
+                        return View();
+                    }
+
+                    // Senior and ROI rules
+                    var cust = db.Customers.FirstOrDefault(c => c.CustID == custId);
+                    if (cust == null)
+                    {
+                        ModelState.AddModelError("", "Customer not found.");
+                        return View();
+                    }
+                    var today2 = DateTime.Today;
+                    int age2 = today2.Year - cust.DOB.Year;
+                    if (cust.DOB > today2.AddYears(-age2)) age2--;
+                    bool isSenior = age2 >= 60;
+
+                    if (isSenior)
+                    {
+                        if (amount > 100000)
+                        {
+                            ModelState.AddModelError("", "Senior Citizens cannot be sanctioned a loan greater than 1 lakh.");
+                            return View();
+                        }
+                        roi = 9.5m;
+                    }
+                    else
+                    {
+                        if (amount >= 1000000) roi = 9.0m;
+                        else if (amount >= 500000) roi = 9.5m;
+                        else roi = 10.0m;
+                    }
+
+                    // EMI calculation (amortized)
+                    decimal monthlyRate = roi / (12 * 100);
+                    double pow = Math.Pow(1 + (double)monthlyRate, months);
+                    decimal emi = (monthlyRate == 0) ? (amount / months) : (amount * monthlyRate * (decimal)pow) / ((decimal)pow - 1);
+                    emi = Math.Round(emi, 2);
+
+                    // EMI should not exceed 60% of monthly take home
+                    if (emi > 0.6m * monthlyTakeHome)
+                    {
+                        ModelState.AddModelError("", $"EMI ({emi:C2}) cannot exceed 60% of monthly take home ({monthlyTakeHome:C2}).");
+                        return View();
+                    }
+
+                    var start = DateTime.Now.Date;
+                    // Insert and fetch generated LNAccountID
+                    var sqlAcc = @"INSERT INTO dbo.LoanAccount (CustomerID, LoanAmount, StartDate, TenureMonths, LNROI, EMIAmount, Status)
+                                   VALUES (@CustomerID, @LoanAmount, @StartDate, @TenureMonths, @LNROI, @EMIAmount, @Status);
+                                   SELECT LNAccountID FROM dbo.LoanAccount WHERE LNNum = SCOPE_IDENTITY();";
+
+                    var accParams = new[] {
                         new SqlParameter("@CustomerID", custId),
                         new SqlParameter("@LoanAmount", amount),
                         new SqlParameter("@StartDate", start),
@@ -397,11 +471,17 @@ namespace MVCBank.Controllers
                         new SqlParameter("@Status", "Active")
                     };
 
-                    db.Database.ExecuteSqlCommand(sql, parameters);
+                    var createdAccountId = db.Database.SqlQuery<string>(sqlAcc, accParams).FirstOrDefault();
+                    if (string.IsNullOrEmpty(createdAccountId))
+                    {
+                        ModelState.AddModelError("", "Loan account not created.");
+                        return View();
+                    }
 
-                    var acc = db.LoanAccounts.FirstOrDefault(a => a.CustomerID == custId && a.StartDate == start && a.LoanAmount == amount);
-                    ViewBag.SuccessMessage = "Loan account created successfully.";
-                    ViewBag.CreatedAccountID = acc?.LNAccountID;
+                    ViewBag.SuccessMessage = $"Loan account created successfully. Account ID: {createdAccountId}. EMI: {emi:C2} (ROI: {roi}% )";
+                    ViewBag.CreatedAccountID = createdAccountId;
+                    ViewBag.LoanEMI = emi;
+                    ViewBag.LoanROI = roi;
                     return View();
                 }
 
@@ -475,8 +555,8 @@ namespace MVCBank.Controllers
             var pwd = string.IsNullOrEmpty(providedPwd) ? GenerateRandomPassword(8) : providedPwd;
             var pwdBytes = Encoding.UTF8.GetBytes(pwd);
 
-            var sql = @"INSERT INTO dbo.Employee (EmpName, DeptID, EmpType, PAN, EmpPassword) VALUES (@EmpName, @DeptID, @EmpType, @PAN, @EmpPassword)";
-            var parameters = new[] {
+            var sqlEmp = @"INSERT INTO dbo.Employee (EmpName, DeptID, EmpType, PAN, EmpPassword) VALUES (@EmpName, @DeptID, @EmpType, @PAN, @EmpPassword)";
+            var parametersEmp = new[] {
                 new SqlParameter("@EmpName", (object)name ?? DBNull.Value),
                 new SqlParameter("@DeptID", (object)deptId ?? DBNull.Value),
                 new SqlParameter("@EmpType", "E"),
@@ -486,7 +566,7 @@ namespace MVCBank.Controllers
 
             try
             {
-                db.Database.ExecuteSqlCommand(sql, parameters);
+                db.Database.ExecuteSqlCommand(sqlEmp, parametersEmp);
 
                 Employee created = null;
                 if (!string.IsNullOrEmpty(pan)) created = db.Employees.FirstOrDefault(e => e.PAN == pan);

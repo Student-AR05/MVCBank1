@@ -19,7 +19,7 @@
     </select>
 </div>
 
-<form method="post" action="@Url.Action("OpenAccount", "Customer")">
+<form method="post" action="@Url.Action("OpenAccount", "Customer")" id="openAccountForm">
     @Html.AntiForgeryToken()
 
     <div id="savingsForm" class="account-form">
@@ -57,9 +57,11 @@
             <input type="number" min="1" name="loanTenure" class="form-control" id="loanTenure" />
         </div>
         <div class="mb-3">
-            <label for="loanROI" class="form-label">Interest Rate (e.g. 10.5)</label>
-            <input type="number" step="0.01" min="0" name="loanROI" class="form-control" id="loanROI" />
+            <label for="monthlyTakeHome" class="form-label">Monthly Take Home</label>
+            <input type="number" step="0.01" min="0" name="monthlyTakeHome" class="form-control" id="monthlyTakeHome" />
         </div>
+        <div id="emiWarning" class="alert alert-warning" style="display:none;max-width:600px;"></div>
+        <div id="emiInfo" class="alert alert-info" style="display:none;max-width:600px;"></div>
     </div>
 
     <input type="hidden" name="accountTypeSelected" id="accountTypeSelected" value="SAVINGS" />
@@ -75,6 +77,13 @@
         var loan = document.getElementById('loanForm');
         var hidden = document.getElementById('accountTypeSelected');
 
+        var loanAmount = document.getElementById('loanAmount');
+        var loanTenure = document.getElementById('loanTenure');
+        var monthlyTakeHome = document.getElementById('monthlyTakeHome');
+        var emiWarning = document.getElementById('emiWarning');
+        var emiInfo = document.getElementById('emiInfo');
+        var form = document.getElementById('openAccountForm');
+
         function toggle(){
             var v = sel.value;
             savings.style.display = v === 'SAVINGS' ? '' : 'none';
@@ -85,5 +94,52 @@
 
         sel.addEventListener('change', toggle);
         toggle();
+
+        function computeEMI() {
+            var amount = parseFloat(loanAmount.value) || 0;
+            var tenure = parseInt(loanTenure.value) || 0;
+            var takeHome = parseFloat(monthlyTakeHome.value) || 0;
+            // ROI slabs
+            var roi = 0.10;
+            if(amount > 1000000) roi = 0.09;
+            else if(amount >= 500000) roi = 0.095;
+
+            var r = roi/12;
+            var n = tenure;
+            var emi = n > 0 ? (amount * r * Math.pow(1+r, n)) / (Math.pow(1+r, n)-1) : 0;
+
+            if(takeHome > 0 && emi > takeHome * 0.6) {
+                emiWarning.style.display = '';
+                emiWarning.innerText = 'EMI exceeds 60% of Monthly Take Home. Please adjust values.';
+            } else {
+                emiWarning.style.display = 'none';
+            }
+
+            if(amount >= 10000 && tenure > 0) {
+                emiInfo.style.display = '';
+                emiInfo.innerHTML = '<strong>Estimated EMI:</strong> ' + emi.toFixed(2)
+                    + ' | <strong>ROI:</strong> ' + (roi*100).toFixed(2) + '%';
+            } else {
+                emiInfo.style.display = 'none';
+            }
+        }
+
+        loanAmount && loanAmount.addEventListener('input', computeEMI);
+        loanTenure && loanTenure.addEventListener('input', computeEMI);
+        monthlyTakeHome && monthlyTakeHome.addEventListener('input', computeEMI);
+
+        form.addEventListener('submit', function(e){
+            if(hidden.value === 'LOAN'){
+                var amount = parseFloat(loanAmount.value) || 0;
+                var tenure = parseInt(loanTenure.value) || 0;
+                var takeHome = parseFloat(monthlyTakeHome.value) || 0;
+                if(amount < 10000){ alert('Minimum Loan amount is Rs. 10,000'); e.preventDefault(); return false; }
+                if(tenure <= 0){ alert('Loan tenure (months) is required.'); e.preventDefault(); return false; }
+                if(takeHome <= 0){ alert('Monthly take home is required.'); e.preventDefault(); return false; }
+                var roi = 0.10; if(amount > 1000000) roi = 0.09; else if(amount >= 500000) roi = 0.095;
+                var r = roi/12; var n = tenure; var emi = n > 0 ? (amount * r * Math.pow(1+r, n)) / (Math.pow(1+r, n)-1) : 0;
+                if(takeHome > 0 && emi > takeHome * 0.6){ alert('EMI exceeds 60% of Monthly Take Home. Please adjust values.'); e.preventDefault(); return false; }
+            }
+        });
     })();
 </script>

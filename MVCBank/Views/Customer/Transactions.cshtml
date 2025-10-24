@@ -83,7 +83,21 @@
 
 @if (ViewBag.Transactions != null)
 {
-    <h4 class="mt-4">Transactions for @ViewBag.AccountType - @((ViewBag.Account != null) ? (ViewBag.Account.SBAccountID ?? ViewBag.Account.FDAccountID ?? ViewBag.Account.LNAccountID) : "")</h4>
+    string accId = string.Empty;
+    if (ViewBag.AccountType == "SAVINGS" && ViewBag.Account != null)
+    {
+        accId = ((MVCBank.Models.SavingsAccount)ViewBag.Account).SBAccountID;
+    }
+    else if (ViewBag.AccountType == "FD" && ViewBag.Account != null)
+    {
+        accId = ((MVCBank.Models.FixedDepositAccount)ViewBag.Account).FDAccountID;
+    }
+    else if (ViewBag.AccountType == "LOAN" && ViewBag.Account != null)
+    {
+        accId = ((MVCBank.Models.LoanAccount)ViewBag.Account).LNAccountID;
+    }
+
+    <h4 class="mt-4">Transactions for @ViewBag.AccountType - @accId</h4>
 
     if (ViewBag.AccountType == "SAVINGS")
     {

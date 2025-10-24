@@ -149,10 +149,10 @@ namespace MVCBank.Controllers
                         return RedirectToAction("OpenAccount");
                     }
 
-                    var existing = db.SavingsAccounts.FirstOrDefault(a => a.CustomerID == userId);
+                    var existing = db.SavingsAccounts.FirstOrDefault(a => a.CustomerID == userId && a.Status=="Active");
                     if (existing != null)
                     {
-                        TempData["Message"] = "You already have a savings account.";
+                        TempData["Message"] = "You already have a savings account (active or pending).";
                         return RedirectToAction("Dashboard");
                     }
 
@@ -203,36 +203,103 @@ namespace MVCBank.Controllers
 
                 if (accountType == "LOAN")
                 {
-                    decimal amount = 0; int months = 0; decimal roi = 0;
+                    // Enforce: customer must have an active savings account before opening a loan
+                    var hasActiveSavings = db.SavingsAccounts.Any(a => a.CustomerID == userId && ((a.Status ?? "").ToLower() == "active"));
+                    if (!hasActiveSavings)
+                    {
+                        TempData["Message"] = "You must have an active savings account before opening a loan.";
+                        return RedirectToAction("OpenAccount");
+                    }
+
+                    decimal amount = 0; int months = 0; decimal monthlyTakeHome = 0; decimal roi = 0;
                     decimal.TryParse(form["loanAmount"], out amount);
                     int.TryParse(form["loanTenure"], out months);
-                    decimal.TryParse(form["loanROI"], out roi);
+                    decimal.TryParse(form["monthlyTakeHome"], out monthlyTakeHome);
 
                     if (amount < 10000)
                     {
                         TempData["Message"] = "Minimum loan amount is 10000.";
                         return RedirectToAction("OpenAccount");
                     }
+                    if (months <= 0)
+                    {
+                        TempData["Message"] = "Loan tenure (months) is required.";
+                        return RedirectToAction("OpenAccount");
+                    }
+                    if (monthlyTakeHome <= 0)
+                    {
+                        TempData["Message"] = "Monthly take home is required.";
+                        return RedirectToAction("OpenAccount");
+                    }
 
-                    decimal emi = months == 0 ? 0 : Math.Round((amount * roi / 100) / months, 2);
+                    var cust = db.Customers.FirstOrDefault(c => c.CustID == userId);
+                    if (cust == null)
+                    {
+                        TempData["Message"] = "Customer not found.";
+                        return RedirectToAction("OpenAccount");
+                    }
+
+                    // Age and senior rules
+                    var today = DateTime.Today;
+                    int age = today.Year - cust.DOB.Year;
+                    if (cust.DOB > today.AddYears(-age)) age--;
+                    bool isSenior = age >= 60;
+                    if (isSenior)
+                    {
+                        if (amount > 100000)
+                        {
+                            TempData["Message"] = "Senior Citizens cannot be sanctioned a loan of greater than 1 lakh.";
+                            return RedirectToAction("OpenAccount");
+                        }
+                        roi = 9.5m;
+                    }
+                    else
+                    {
+                        if (amount >= 1000000) roi = 9.0m;
+                        else if (amount >= 500000) roi = 9.5m;
+                        else roi = 10.0m;
+                    }
+
+                    // EMI calculation using amortized formula
+                    decimal monthlyRate = roi / (12 * 100);
+                    double pow = Math.Pow(1 + (double)monthlyRate, months);
+                    decimal emi = (monthlyRate == 0) ? (amount / months) : (amount * monthlyRate * (decimal)pow) / ((decimal)pow - 1);
+                    emi = Math.Round(emi, 2);
+
+                    if (emi > 0.6m * monthlyTakeHome)
+                    {
+                        TempData["Message"] = $"EMI ({emi:C2}) cannot exceed 60% of monthly take home ({monthlyTakeHome:C2}).";
+                        return RedirectToAction("OpenAccount");
+                    }
+
                     var start = DateTime.Now.Date;
 
-                    var sql = @"INSERT INTO dbo.LoanAccount (CustomerID, LoanAmount, StartDate, TenureMonths, LNROI, EMIAmount, Status) VALUES (@CustomerID, @LoanAmount, @StartDate, @TenureMonths, @LNROI, @EMIAmount, @Status)";
-                    var parameters = new[] {
+                    // Insert LoanAccount and fetch generated LNAccountID
+                    var sqlAcc = @"INSERT INTO dbo.LoanAccount (CustomerID, LoanAmount, StartDate, TenureMonths, LNROI, EMIAmount, Status)
+                                   VALUES (@CustomerID, @LoanAmount, @StartDate, @TenureMonths, @LNROI, @EMIAmount, @Status);
+                                   SELECT LNAccountID FROM dbo.LoanAccount WHERE LNNum = SCOPE_IDENTITY();";
+
+                    var accParams = new[] {
                         new SqlParameter("@CustomerID", userId),
                         new SqlParameter("@LoanAmount", amount),
                         new SqlParameter("@StartDate", start),
                         new SqlParameter("@TenureMonths", months),
                         new SqlParameter("@LNROI", roi),
                         new SqlParameter("@EMIAmount", emi),
-                        new SqlParameter("@Status", "Active")
+                        new SqlParameter("@Status", "Pending")
                     };
 
-                    db.Database.ExecuteSqlCommand(sql, parameters);
+                    string createdAccountId = db.Database.SqlQuery<string>(sqlAcc, accParams).FirstOrDefault();
+                    if (string.IsNullOrEmpty(createdAccountId))
+                    {
+                        TempData["Message"] = "Failed to submit loan request.";
+                        return RedirectToAction("OpenAccount");
+                    }
 
-                    var acc = db.LoanAccounts.FirstOrDefault(a => a.CustomerID == userId && a.StartDate == start && a.LoanAmount == amount);
-                    ViewBag.SuccessMessage = "Loan account created successfully.";
-                    ViewBag.CreatedAccountID = acc?.LNAccountID;
+                    ViewBag.SuccessMessage = $"Loan application submitted. Account ID: {createdAccountId}. EMI: {emi:C2} (ROI: {roi}% )";
+                    ViewBag.CreatedAccountID = createdAccountId;
+                    ViewBag.LoanEMI = emi;
+                    ViewBag.LoanROI = roi;
                     return View();
                 }
             }
@@ -574,6 +641,14 @@ namespace MVCBank.Controllers
 
             try
             {
+                // Enforce: customer must have an active savings account before applying for a loan
+                var hasActiveSavings = db.SavingsAccounts.Any(a => a.CustomerID == userId && ((a.Status ?? "").ToLower() == "active"));
+                if (!hasActiveSavings)
+                {
+                    ModelState.AddModelError("", "You must have an active savings account before applying for a loan.");
+                    return View();
+                }
+
                 decimal amount = 0; int months = 0; decimal roi = 0;
                 decimal.TryParse(form["loanAmount"], out amount);
                 int.TryParse(form["loanTenure"], out months);
@@ -737,8 +812,8 @@ namespace MVCBank.Controllers
                     }
 
                     var txns = db.FDTransactions.Where(t => t.FDAccountID == accountId)
-                                                     .OrderByDescending(t => t.TransactionDate)
-                                                     .ToList();
+                                                 .OrderByDescending(t => t.TransactionDate)
+                                                 .ToList();
 
                     ViewBag.AccountType = "FD";
                     ViewBag.Account = acc;
@@ -776,7 +851,161 @@ namespace MVCBank.Controllers
             return View();
         }
 
-        // ... other existing actions remain unchanged ...
+        // Transfer money between savings accounts (customer)
+        [HttpGet]
+        public ActionResult Transfer()
+        {
+            var userId = Session["UserID"] as string;
+            var from = db.SavingsAccounts.FirstOrDefault(a => a.CustomerID == userId && (a.Status ?? "").ToLower() == "active");
+            if (from == null)
+            {
+                ViewBag.ErrorMessage = "You need an active savings account to transfer money.";
+            }
+            else
+            {
+                ViewBag.FromAccount = from.SBAccountID;
+                ViewBag.FromBalance = from.Balance;
+            }
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult Transfer(FormCollection form)
+        {
+            var userId = Session["UserID"] as string;
+            var targetId = (form["toAccountId"] ?? string.Empty).Trim();
+            decimal amount = 0m;
+            decimal.TryParse(form["amount"], out amount);
+
+            if (amount <= 100m)
+            {
+                ModelState.AddModelError("", "Transfer amount must be greater than Rs. 100.");
+            }
+            if (string.IsNullOrEmpty(targetId))
+            {
+                ModelState.AddModelError("", "Destination savings account ID is required.");
+            }
+
+            var from = db.SavingsAccounts.FirstOrDefault(a => a.CustomerID == userId && (a.Status ?? "").ToLower() == "active");
+            if (from == null)
+            {
+                ModelState.AddModelError("", "You need an active savings account to transfer money.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                if (from != null)
+                {
+                    ViewBag.FromAccount = from.SBAccountID;
+                    ViewBag.FromBalance = from.Balance;
+                }
+                return View();
+            }
+
+            if (from.SBAccountID.Equals(targetId, StringComparison.OrdinalIgnoreCase))
+            {
+                ModelState.AddModelError("", "Cannot transfer to the same account.");
+                ViewBag.FromAccount = from.SBAccountID;
+                ViewBag.FromBalance = from.Balance;
+                return View();
+            }
+
+            // Check balance sufficiency
+            if (from.Balance < amount)
+            {
+                ModelState.AddModelError("", $"Insufficient balance. Available: Rs. {from.Balance:0.00}");
+                ViewBag.FromAccount = from.SBAccountID;
+                ViewBag.FromBalance = from.Balance;
+                return View();
+            }
+
+            // Validate destination account exists and active
+            var to = db.SavingsAccounts.FirstOrDefault(a => a.SBAccountID == targetId);
+            if (to == null)
+            {
+                ModelState.AddModelError("", "Destination savings account not found.");
+                ViewBag.FromAccount = from.SBAccountID;
+                ViewBag.FromBalance = from.Balance;
+                return View();
+            }
+            if ((to.Status ?? string.Empty).Trim().ToLower() != "active")
+            {
+                ModelState.AddModelError("", "Destination savings account is not active.");
+                ViewBag.FromAccount = from.SBAccountID;
+                ViewBag.FromBalance = from.Balance;
+                return View();
+            }
+
+            try
+            {
+                using (var tx = db.Database.BeginTransaction())
+                {
+                    try
+                    {
+                        // Deduct from source with atomic balance check
+                        var rowsFrom = db.Database.ExecuteSqlCommand(
+                            "UPDATE dbo.SavingsAccount SET Balance = Balance - @p0 WHERE SBAccountID = @p1 AND Balance >= @p0",
+                            amount, from.SBAccountID);
+                        if (rowsFrom == 0)
+                        {
+                            tx.Rollback();
+                            ModelState.AddModelError("", "Failed to debit your savings account or insufficient funds.");
+                            ViewBag.FromAccount = from.SBAccountID;
+                            ViewBag.FromBalance = from.Balance;
+                            return View();
+                        }
+
+                        // Credit destination
+                        var rowsTo = db.Database.ExecuteSqlCommand(
+                            "UPDATE dbo.SavingsAccount SET Balance = Balance + @p0 WHERE SBAccountID = @p1",
+                            amount, to.SBAccountID);
+                        if (rowsTo == 0)
+                        {
+                            tx.Rollback();
+                            ModelState.AddModelError("", "Failed to credit destination account.");
+                            ViewBag.FromAccount = from.SBAccountID;
+                            ViewBag.FromBalance = from.Balance;
+                            return View();
+                        }
+
+                        // Insert transactions
+                        var insertTxn = @"INSERT INTO dbo.SavingsTransaction (SBAccountID, TransactionDate, TransactionType, Amount)
+                                          VALUES (@p0, @p1, @p2, @p3)";
+                        // Source: withdrawal
+                        db.Database.ExecuteSqlCommand(insertTxn, from.SBAccountID, DateTime.Now, "W", amount);
+                        // Destination: deposit
+                        db.Database.ExecuteSqlCommand(insertTxn, to.SBAccountID, DateTime.Now, "D", amount);
+
+                        tx.Commit();
+
+                        // Refresh balance
+                        var refreshed = db.SavingsAccounts.FirstOrDefault(a => a.SBAccountID == from.SBAccountID);
+                        ViewBag.FromAccount = refreshed?.SBAccountID ?? from.SBAccountID;
+                        ViewBag.FromBalance = refreshed?.Balance ?? (from.Balance - amount);
+                        ViewBag.SuccessMessage = $"Transferred Rs. {amount:0.00} to {to.SBAccountID} successfully.";
+                        return View();
+                    }
+                    catch (Exception ex)
+                    {
+                        tx.Rollback();
+                        var msg = ex.InnerException?.Message ?? ex.Message;
+                        ModelState.AddModelError("", "Failed to transfer: " + msg);
+                        ViewBag.FromAccount = from.SBAccountID;
+                        ViewBag.FromBalance = from.Balance;
+                        return View();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.InnerException?.Message ?? ex.Message;
+                ModelState.AddModelError("", "Failed to transfer: " + msg);
+                ViewBag.FromAccount = from.SBAccountID;
+                ViewBag.FromBalance = from.Balance;
+                return View();
+            }
+        }
 
         // Helper to extract full inner exception messages (useful for DB errors)
         private string GetInnerExceptionMessages(Exception ex)

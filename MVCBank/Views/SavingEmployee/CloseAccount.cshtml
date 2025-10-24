@@ -3,7 +3,7 @@
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
-<h2>Close Savings Account</h2>
+<h2>Close Account</h2>
 
 @if (!string.IsNullOrEmpty(ViewBag.SuccessMessage))
 {
@@ -15,13 +15,26 @@
 <form method="post" action="@Url.Action("CloseAccount", "SavingEmployee")">
     @Html.AntiForgeryToken()
 
-    @* Hidden account type fixed to SAVINGS *@
-    <input type="hidden" name="accountType" value="SAVINGS" />
+    <div class="mb-3" style="max-width:300px;">
+        <label class="form-label">Account Type</label>
+        <select name="accountType" class="form-control">
+            <option value="SAVINGS">Savings</option>
+            <option value="FD">Fixed Deposit</option>
+        </select>
+    </div>
 
     <div class="mb-3" style="max-width:400px;">
         <label class="form-label">Account ID</label>
-        <input type="text" name="accountId" class="form-control" placeholder="Enter SBAccountID e.g. SB00001" />
+        <input type="text" name="accountId" class="form-control" placeholder="Enter account id e.g. SB00001 or FD00001" />
     </div>
 
-    <button type="submit" class="btn btn-danger">Close Savings Account</button>
+    <button type="submit" class="btn btn-danger">Close Account</button>
 </form>
+
+<p class="text-muted mt-3" style="max-width:600px;">
+    Notes:
+    <ul>
+        <li>Closing a Savings account is blocked if the customer has any active loan accounts.</li>
+        <li>Closing a Fixed Deposit will transfer the maturity amount to the customer's active savings account.</li>
+    </ul>
+</p>

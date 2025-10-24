@@ -10,6 +10,7 @@ using System.Data.Entity.Validation;
 using System.Data.Entity.Infrastructure;
 using System.Data.SqlClient;
 using MVCBank.Filters;
+using MVCBank.Models.ViewModels;
 
 namespace MVCBank.Controllers
 {
@@ -107,6 +108,14 @@ namespace MVCBank.Controllers
                         return View();
                     }
 
+                    // 10-digit phone validation
+                    var phonePattern = new Regex("^\\d{10}$");
+                    if (!phonePattern.IsMatch(phone ?? string.Empty))
+                    {
+                        ModelState.AddModelError("", "Phone number must be exactly 10 digits for new customer.");
+                        return View();
+                    }
+
                     var panPattern = new Regex("^[A-Z]{4}[0-9]{4}$");
                     if (!panPattern.IsMatch(pan))
                     {
@@ -149,13 +158,13 @@ namespace MVCBank.Controllers
                     ViewBag.NewCustomerPassword = pwd;
                 }
 
-                // New validation: no customer can have more than 1 savings account
+                // Updated validation: block only when a non-closed savings account exists
                 if (!string.IsNullOrEmpty(custId))
                 {
-                    var existingAccount = db.SavingsAccounts.FirstOrDefault(a => a.CustomerID == custId);
-                    if (existingAccount != null)
+                    var hasOpenSavings = db.SavingsAccounts.Any(a => a.CustomerID == custId && ((a.Status ?? "").ToLower() != "closed"));
+                    if (hasOpenSavings)
                     {
-                        ModelState.AddModelError("", "Customer already has a savings account.");
+                        ModelState.AddModelError("", "Customer already has an active or pending savings account.");
                         return View();
                     }
                 }
@@ -239,6 +248,116 @@ namespace MVCBank.Controllers
                     return View();
                 }
 
+                if (accountType == "FD")
+                {
+                    var acc = db.FixedDepositAccounts.FirstOrDefault(a => a.FDAccountID == accountId);
+                    if (acc == null)
+                    {
+                        ModelState.AddModelError("", "Fixed deposit account not found.");
+                        ViewBag.AccountTypeSel = accountType;
+                        ViewBag.Accounts = new List<AccountListItemViewModel>();
+                        return View();
+                    }
+                    if ((acc.Status ?? "").Trim().ToLower() == "closed")
+                    {
+                        ModelState.AddModelError("", $"Fixed deposit account {accountId} is already closed.");
+                        ViewBag.AccountTypeSel = accountType;
+                        ViewBag.Accounts = new List<AccountListItemViewModel>();
+                        return View();
+                    }
+
+                    // Find customer's active savings account to receive the funds
+                    var sav = db.SavingsAccounts.FirstOrDefault(s => s.CustomerID == acc.CustomerID && ((s.Status ?? "").ToLower() == "active"));
+                    if (sav == null)
+                    {
+                        ModelState.AddModelError("", "Customer does not have an active savings account to transfer FD funds into.");
+                        ViewBag.AccountTypeSel = accountType;
+                        ViewBag.Accounts = new List<AccountListItemViewModel>();
+                        return View();
+                    }
+
+                    try
+                    {
+                        using (var tx = db.Database.BeginTransaction())
+                        {
+                            try
+                            {
+                                // Calculate maturity amount up to today (cap at FD end date)
+                                var calcDate = DateTime.Now.Date;
+                                if (acc.EndDate < calcDate) calcDate = acc.EndDate.Date;
+                                double years = (calcDate - acc.StartDate.Date).TotalDays / 365.0;
+                                if (years < 0) years = 0;
+                                double principal = (double)acc.DepositAmount;
+                                double rate = (double)acc.FDROI / 100.0;
+                                double maturity = principal * Math.Pow(1.0 + rate, years);
+                                decimal maturityAmount = Math.Round((decimal)maturity, 2);
+
+                                // Mark FD as closed
+                                var rowsFd = db.Database.ExecuteSqlCommand(
+                                    "UPDATE dbo.FixedDepositAccount SET Status = @status WHERE FDAccountID = @id",
+                                    new SqlParameter("@status", "Closed"),
+                                    new SqlParameter("@id", accountId));
+                                if (rowsFd <= 0)
+                                {
+                                    tx.Rollback();
+                                    ModelState.AddModelError("", "Failed to update FD status.");
+                                    return View();
+                                }
+
+                                // Credit savings account
+                                var rowsSav = db.Database.ExecuteSqlCommand(
+                                    "UPDATE dbo.SavingsAccount SET Balance = Balance + @p0 WHERE SBAccountID = @p1",
+                                    maturityAmount, sav.SBAccountID);
+                                if (rowsSav <= 0)
+                                {
+                                    tx.Rollback();
+                                    ModelState.AddModelError("", "Failed to credit savings account.");
+                                    return View();
+                                }
+
+                                // Insert savings transaction (deposit)
+                                var insertSavTx = @"INSERT INTO dbo.SavingsTransaction (SBAccountID, TransactionDate, TransactionType, Amount)
+                                                     VALUES (@p0, @p1, @p2, @p3)";
+                                db.Database.ExecuteSqlCommand(insertSavTx,
+                                    new SqlParameter("@p0", sav.SBAccountID),
+                                    new SqlParameter("@p1", DateTime.Now),
+                                    new SqlParameter("@p2", "D"),
+                                    new SqlParameter("@p3", maturityAmount));
+
+                                // Insert FD transaction marking maturity/closure
+                                var insertFdTx = @"INSERT INTO dbo.FDTransaction (FDAccountID, TransactionDate, FDType, Amount)
+                                                    VALUES (@p0, @p1, @p2, @p3)";
+                                db.Database.ExecuteSqlCommand(insertFdTx,
+                                    new SqlParameter("@p0", acc.FDAccountID),
+                                    new SqlParameter("@p1", DateTime.Now),
+                                    new SqlParameter("@p2", "M"),
+                                    new SqlParameter("@p3", maturityAmount));
+
+                                tx.Commit();
+
+                                ViewBag.SuccessMessage = $"Fixed deposit {accountId} closed and Rs. {maturityAmount:N2} transferred to savings account {sav.SBAccountID}.";
+                                ViewBag.FDClosedAmount = maturityAmount;
+                                ViewBag.ReceivingSavings = sav.SBAccountID;
+                            }
+                            catch (Exception ex)
+                            {
+                                tx.Rollback();
+                                var inner = ex.InnerException?.Message ?? ex.Message;
+                                ModelState.AddModelError("", "Failed to close FD: " + inner);
+                                return View();
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        var inner = ex.InnerException?.Message ?? ex.Message;
+                        ModelState.AddModelError("", "Failed to close FD: " + inner);
+                        ViewBag.AccountTypeSel = accountType;
+                        ViewBag.Accounts = new List<AccountListItemViewModel>();
+                        return View();
+                    }
+                }
+
                 ModelState.AddModelError("", "Not authorized to close accounts of this type.");
             }
             catch (Exception ex)
@@ -269,6 +388,13 @@ namespace MVCBank.Controllers
             if (string.IsNullOrEmpty(accountId) || amount <= 0)
             {
                 ModelState.AddModelError("", "Valid Account ID and amount must be provided for deposit.");
+                return View();
+            }
+
+            // Enforce minimum deposit of Rs. 100
+            if (amount < 100)
+            {
+                ModelState.AddModelError("", "Minimum deposit amount is Rs. 100.");
                 return View();
             }
 
@@ -553,6 +679,14 @@ namespace MVCBank.Controllers
                         return View();
                     }
 
+                    // 10-digit phone validation
+                    var phonePattern = new Regex("^\\d{10}$");
+                    if (!phonePattern.IsMatch(phone ?? string.Empty))
+                    {
+                        ModelState.AddModelError("", "Phone number must be exactly 10 digits for new customer.");
+                        return View();
+                    }
+
                     var panPattern = new Regex("^[A-Z]{4}[0-9]{4}$");
                     if (!panPattern.IsMatch(pan))
                     {
@@ -598,6 +732,13 @@ namespace MVCBank.Controllers
                 // Create account depending on accountType
                 if (accountType == "SAVINGS")
                 {
+                    // Block only if there is a non-closed savings account
+                    if (db.SavingsAccounts.Any(a => a.CustomerID == custId && ((a.Status ?? "").ToLower() != "closed")))
+                    {
+                        ModelState.AddModelError("", "A savings account already exists for this customer (Active or Pending). Close it first to open a new one.");
+                        return View();
+                    }
+
                     decimal initial = 0;
                     decimal.TryParse(form["initialDeposit"], out initial);
                     if (initial < 1000)
@@ -619,11 +760,10 @@ namespace MVCBank.Controllers
                     }
                     catch (SqlException sqlex)
                     {
-                        // 2601 and 2627 indicate duplicate key / unique constraint violations
+                        // Still catch unique key violations if any DB constraint exists
                         if (sqlex.Number == 2601 || sqlex.Number == 2627)
                         {
-                            // find existing savings account for this customer and show friendly message
-                            var existing = db.SavingsAccounts.FirstOrDefault(a => a.CustomerID == custId);
+                            var existing = db.SavingsAccounts.FirstOrDefault(a => a.CustomerID == custId && ((a.Status ?? "").ToLower() != "closed"));
                             if (existing != null)
                             {
                                 ModelState.AddModelError("", $"A savings account already exists for this customer (Account ID: {existing.SBAccountID}).");

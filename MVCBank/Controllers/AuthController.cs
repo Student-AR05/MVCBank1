@@ -224,6 +224,20 @@ namespace MVCBank.Controllers
                 if (!string.IsNullOrEmpty(c.PAN) && db.Customers.Any(x => x.PAN == c.PAN))
                     ModelState.AddModelError("PAN", "PAN already exists for another customer.");
 
+                // Prevent employees or managers from registering as customers using same PAN
+                if (!string.IsNullOrEmpty(c.PAN))
+                {
+                    var conflictingEmp = db.Employees.FirstOrDefault(e => e.PAN == c.PAN);
+                    if (conflictingEmp != null)
+                    {
+                        var etype = (conflictingEmp.EmpType ?? string.Empty).Trim().ToUpperInvariant();
+                        if (etype == "E" || etype == "M")
+                        {
+                            ModelState.AddModelError("PAN", "Employees and Managers cannot register as customers.");
+                        }
+                    }
+                }
+
                 if (!ModelState.IsValid)
                 {
                     return View(c);

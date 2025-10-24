@@ -234,6 +234,7 @@
     <Content Include="Views\SavingEmployee\RemoveCustomer.cshtml" />
     <Content Include="Views\SavingEmployee\PendingRequests.cshtml" />
     <Content Include="Views\Shared\_Alerts.cshtml" />
+    <Content Include="Views\Customer\Transfer.cshtml" />
     <None Include="Web.Debug.config">
       <DependentUpon>Web.config</DependentUpon>
     </None>

@@ -109,6 +109,14 @@ namespace MVCBank.Controllers
                         return View();
                     }
 
+                    // 10-digit phone validation
+                    var phonePattern = new Regex("^\\d{10}$");
+                    if (!phonePattern.IsMatch(phone ?? string.Empty))
+                    {
+                        ModelState.AddModelError("", "Phone number must be exactly 10 digits for new customer.");
+                        return View();
+                    }
+
                     var panPattern = new Regex("^[A-Z]{4}[0-9]{4}$");
                     if (!panPattern.IsMatch(pan))
                     {
@@ -149,6 +157,14 @@ namespace MVCBank.Controllers
 
                     custId = customer.CustID;
                     ViewBag.NewCustomerPassword = pwd;
+                }
+
+                // Enforce: customer must have an active savings account before opening a loan
+                var hasActiveSavings = db.SavingsAccounts.Any(a => a.CustomerID == custId && ((a.Status ?? "").ToLower() == "active"));
+                if (!hasActiveSavings)
+                {
+                    ModelState.AddModelError("", "Customer must have an active savings account before opening a loan.");
+                    return View();
                 }
 
                 // --- Custom Validations ---
@@ -458,11 +474,54 @@ namespace MVCBank.Controllers
                     return View();
                 }
 
+                // If loan is closed, prevent further payments
+                var status = (acc.Status ?? string.Empty).Trim();
+                if (status.Equals("Closed", StringComparison.OrdinalIgnoreCase))
+                {
+                    // reload details for display
+                    var lastTxnClosed = db.LoanTransactions.Where(t => t.LNAccountID == accountId)
+                                                            .OrderByDescending(t => t.EMIDate_Actual)
+                                                            .FirstOrDefault();
+                    decimal closedOutstanding = lastTxnClosed != null ? lastTxnClosed.Outstanding : acc.LoanAmount;
+                    ViewBag.Account = acc;
+                    ViewBag.Outstanding = closedOutstanding;
+                    ViewBag.LoanEMI = acc.EMIAmount;
+                    ViewBag.LoanROI = acc.LNROI;
+
+                    ModelState.AddModelError("", "Loan is already closed. No further payments are allowed.");
+                    return View();
+                }
+
                 // determine current outstanding
                 var lastTxn = db.LoanTransactions.Where(t => t.LNAccountID == accountId)
                                                   .OrderByDescending(t => t.EMIDate_Actual)
                                                   .FirstOrDefault();
                 decimal currentOutstanding = lastTxn != null ? lastTxn.Outstanding : acc.LoanAmount;
+                currentOutstanding = Math.Round(currentOutstanding, 2);
+
+                // No outstanding case
+                if (currentOutstanding <= 0)
+                {
+                    ViewBag.Account = acc;
+                    ViewBag.Outstanding = currentOutstanding;
+                    ViewBag.LoanEMI = acc.EMIAmount;
+                    ViewBag.LoanROI = acc.LNROI;
+
+                    ModelState.AddModelError("", "No outstanding amount for this loan.");
+                    return View();
+                }
+
+                // Prevent amount greater than outstanding
+                if (amount > currentOutstanding)
+                {
+                    ViewBag.Account = acc;
+                    ViewBag.Outstanding = currentOutstanding;
+                    ViewBag.LoanEMI = acc.EMIAmount;
+                    ViewBag.LoanROI = acc.LNROI;
+
+                    ModelState.AddModelError("", $"Payment amount cannot exceed outstanding amount ({currentOutstanding:C2}).");
+                    return View();
+                }
 
                 var newOutstanding = currentOutstanding - amount;
                 if (newOutstanding < 0) newOutstanding = 0;

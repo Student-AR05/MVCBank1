@@ -12,12 +12,6 @@
 
 @Html.ValidationSummary(true, "", new { @class = "text-danger" })
 
-<form method="post" action="@Url.Action("CloseAccount", "LoanEmployee")">
-    @Html.AntiForgeryToken()
-    <input type="hidden" name="accountType" value="LOAN" />
-    <div class="mb-3" style="max-width:400px;">
-        <label class="form-label">Account ID</label>
-        <input type="text" name="accountId" class="form-control" placeholder="Enter LNAccountID e.g. LN00001" />
-    </div>
-    <button type="submit" class="btn btn-danger">Close Loan Account</button>
-</form>
+<div class="alert alert-info" role="alert" style="max-width:700px;">
+    Closing loan accounts is restricted. Please contact a Manager to perform this action.
+</div>
