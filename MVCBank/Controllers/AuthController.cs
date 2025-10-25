@@ -167,7 +167,7 @@ namespace MVCBank.Controllers
                 // Normalize and validate input
                 c.CustName = (c.CustName ?? string.Empty).Trim();
                 c.PAN = (c.PAN ?? string.Empty).Trim().ToUpperInvariant();
-                c.PhoneNumber = (c.PhoneNumber ?? string.Empty).Trim();
+                c.PhoneNumber = (c.PhoneNumber ?? string.Empty).Trim(); 
                 c.Address = (c.Address ?? string.Empty).Trim();
 
                 var plain = Request.Form["PlainPassword"];

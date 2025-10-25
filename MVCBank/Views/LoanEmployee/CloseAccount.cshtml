@@ -12,6 +12,21 @@
 
 @Html.ValidationSummary(true, "", new { @class = "text-danger" })
 
-<div class="alert alert-info" role="alert" style="max-width:700px;">
-    Closing loan accounts is restricted. Please contact a Manager to perform this action.
+<div class="alert alert-info" role="alert" style="max-width:750px;">
+    To close a loan account, ensure the outstanding is Rs. 0. Use <a href='@Url.Action("Deposit", "LoanEmployee")'>Record Payment</a> for part payments or <a href='@Url.Action("Withdraw", "LoanEmployee")'>Foreclose Loan</a> for final settlement.
 </div>
+
+<form method="post" action="@Url.Action("CloseAccount", "LoanEmployee")" class="row g-3" style="max-width:600px;">
+    @Html.AntiForgeryToken()
+
+    <input type="hidden" name="accountType" value="LOAN" />
+
+    <div class="col-md-8">
+        <label class="form-label">Loan Account ID</label>
+        <input type="text" name="accountId" class="form-control" placeholder="e.g. LN00001" />
+    </div>
+
+    <div class="col-md-4 align-self-end">
+        <button type="submit" class="btn btn-danger w-100">Close Loan Account</button>
+    </div>
+</form>

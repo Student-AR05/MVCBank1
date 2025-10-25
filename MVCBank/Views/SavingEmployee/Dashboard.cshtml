@@ -34,14 +34,14 @@
         <div class="kpi-card kpi-accent-1">
             <div class="kpi-title">Active Savings Accounts</div>
             <div class="kpi-value">@ViewBag.ActiveSavingsAccounts</div>
-            <div class="kpi-sub">Total Balance: @ViewBag.TotalSavingsBalance?.ToString("C0")</div>
+            <div class="kpi-sub">Total Balance: @(ViewBag.TotalSavingsBalance != null ? String.Format("{0:C0}", ViewBag.TotalSavingsBalance) : "")</div>
         </div>
     </div>
     <div class="col-sm-6 col-lg-4">
         <div class="kpi-card kpi-accent-2">
             <div class="kpi-title">Active FD Accounts</div>
             <div class="kpi-value">@ViewBag.ActiveFDAccounts</div>
-            <div class="kpi-sub">Total FD Deposits: @ViewBag.TotalFDDeposits?.ToString("C0")</div>
+            <div class="kpi-sub">Total FD Deposits: @(ViewBag.TotalFDDeposits != null ? String.Format("{0:C0}", ViewBag.TotalFDDeposits) : "")</div>
         </div>
     </div>
     <div class="col-sm-6 col-lg-4">

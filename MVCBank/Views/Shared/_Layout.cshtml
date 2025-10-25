@@ -8,22 +8,48 @@
 </head>
 <body>
     <header class="bg-primary text-white text-center p-3">
-        <h1>My Application</h1>
+        <h1 class="m-0"><a href="@Url.Action("Login","Auth")" class="text-white text-decoration-none">MVCBank</a></h1>
     </header>
 
+    @{ var role = Session["Role"] as string ?? string.Empty; var isLoggedIn = Session["UserID"] != null; }
+
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark px-3">
-        <a class="navbar-brand" href="#">🏦</a>
-        <div class="collapse navbar-collapse">
+        <a class="navbar-brand" href="@Url.Action("Login","Auth")" title="Go to Login">🏦</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mainNavbar">
             <ul class="navbar-nav me-auto">
-                <li class="nav-item"><a class="nav-link" href="@Url.Action("Index", "Home")">Home</a></li>
-                <li class="nav-item"><a class="nav-link" href="@Url.Action("Account", "Bank")">Account</a></li>
-                <li class="nav-item"><a class="nav-link" href="@Url.Action("Transfer", "Bank")">Transfer</a></li>
-                <li class="nav-item"><a class="nav-link" href="@Url.Action("Login", "Auth")">Login</a></li>
+                @if (!isLoggedIn)
+                {
+                    <li class="nav-item"><a class="nav-link" href="@Url.Action("Login", "Auth")">Login</a></li>
+                    <li class="nav-item"><a class="nav-link" href="@Url.Action("Register", "Auth")">Register</a></li>
+                }
+                @if (role == "CUSTOMER")
+                {
+                    <li class="nav-item"><a class="nav-link" href="@Url.Action("Dashboard", "Customer")">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="@Url.Action("OpenAccount", "Customer")">Open Account</a></li>
+                    <li class="nav-item"><a class="nav-link" href="@Url.Action("Transfer", "Customer")">Transfer</a></li>
+                    <li class="nav-item"><a class="nav-link" href="@Url.Action("Transactions", "Customer")">Transactions</a></li>
+                }
+                @if (role == "EMPLOYEE")
+                {
+                    <li class="nav-item"><a class="nav-link" href="@Url.Action("Index", "Employee")">Employee</a></li>
+                    <li class="nav-item"><a class="nav-link" href="@Url.Action("Index", "SavingEmployee")">Savings Desk</a></li>
+                    <li class="nav-item"><a class="nav-link" href="@Url.Action("Index", "LoanEmployee")">Loan Desk</a></li>
+                }
+                @if (role == "MANAGER")
+                {
+                    <li class="nav-item"><a class="nav-link" href="@Url.Action("Dashboard", "Manager")">Manager</a></li>
+                }
             </ul>
-            @using (Html.BeginForm("Logout", "Auth", FormMethod.Post, new { @class = "d-flex mb-0" }))
+            @if (isLoggedIn)
             {
-                @Html.AntiForgeryToken()
-                <button type="submit" class="btn btn-outline-light btn-sm">Logout</button>
+                using (Html.BeginForm("Logout", "Auth", FormMethod.Post, new { @class = "d-flex mb-0" }))
+                {
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-outline-light btn-sm">Logout</button>
+                }
             }
         </div>
     </nav>

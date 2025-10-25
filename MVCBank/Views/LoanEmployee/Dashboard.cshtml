@@ -32,7 +32,7 @@
         <div class="kpi-card kpi-accent-1">
             <div class="kpi-title">Active Loan Accounts</div>
             <div class="kpi-value">@ViewBag.ActiveLoanAccounts</div>
-            <div class="kpi-sub">Total Principal: @ViewBag.TotalLoanPrincipal?.ToString("C0")</div>
+            <div class="kpi-sub">Total Principal: @(ViewBag.TotalLoanPrincipal != null ? String.Format("{0:C0}", ViewBag.TotalLoanPrincipal) : "")</div>
         </div>
     </div>
     <div class="col-sm-6 col-lg-6">

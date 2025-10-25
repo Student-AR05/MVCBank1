@@ -49,7 +49,7 @@
         <div class="kpi-card kpi-accent-3">
             <div class="kpi-title">Loans</div>
             <div class="kpi-value">@Model.ActiveLoanAccounts</div>
-            <div class="kpi-sub">Principal: @Model.TotalLoanPrincipal.ToString("C0")</div>
+            <div class="kpi-sub">Principal: @String.Format("{0:C0}", Model.TotalLoanPrincipal)</div>
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
@@ -110,15 +110,15 @@
             <div class="list-group list-group-flush">
                 <div class="list-group-item d-flex justify-content-between align-items-center">
                     <span>Total Savings Balance</span>
-                    <span class="badge bg-primary">@Model.TotalSavingsBalance.ToString("C0")</span>
+                    <span class="badge bg-primary">@String.Format("{0:C0}", Model.TotalSavingsBalance)</span>
                 </div>
                 <div class="list-group-item d-flex justify-content-between align-items-center">
                     <span>Total FD Deposits</span>
-                    <span class="badge bg-success">@Model.TotalFDDeposits.ToString("C0")</span>
+                    <span class="badge bg-success">@String.Format("{0:C0}", Model.TotalFDDeposits)</span>
                 </div>
                 <div class="list-group-item d-flex justify-content-between align-items-center">
                     <span>Total Loan Principal</span>
-                    <span class="badge bg-warning text-dark">@Model.TotalLoanPrincipal.ToString("C0")</span>
+                    <span class="badge bg-warning text-dark">@String.Format("{0:C0}", Model.TotalLoanPrincipal)</span>
                 </div>
             </div>
         </div>

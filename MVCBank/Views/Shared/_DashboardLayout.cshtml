@@ -13,9 +13,7 @@
     <style>
         body { padding-top: 56px; }
         .content-area { margin: 0; padding-top: 1rem; }
-        @@media (max-width: 767px) {
-            .content-area { margin: 0; }
-        }
+        @@media (max-width: 767px) { .content-area { margin: 0; } }
         /* Ensure table buttons are always visible */
         .table td .btn, .table th .btn {
             display: inline-block !important;
@@ -25,19 +23,50 @@
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-dark bg-dark fixed-top">
+    <nav class="navbar navbar-dark bg-dark fixed-top navbar-expand-lg">
         <div class="container-fluid">
-            <a class="navbar-brand" href="#">MyBank Dashboard</a>
-            <div class="d-flex align-items-center text-white">
-                <div class="me-3 text-end">
-                    <div><strong>@userName</strong></div>
-                    <div class="small">@userId • @role</div>
+            <a class="navbar-brand" href="@Url.Action("Login","Auth")" title="Go to Login">MyBank Dashboard</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#dashNavbar" aria-controls="dashNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="dashNavbar">
+                <ul class="navbar-nav me-auto">
+                    @if (role == "CUSTOMER")
+                    {
+                        <li class="nav-item"><a class="nav-link" href="@Url.Action("Dashboard","Customer")">Home</a></li>
+                        <li class="nav-item"><a class="nav-link" href="@Url.Action("OpenAccount","Customer")">Open Account</a></li>
+                        <li class="nav-item"><a class="nav-link" href="@Url.Action("Transfer","Customer")">Transfer</a></li>
+                        <li class="nav-item"><a class="nav-link" href="@Url.Action("Transactions","Customer")">Transactions</a></li>
+                        <li class="nav-item"><a class="nav-link" href="@Url.Action("Settings","Customer")">Settings</a></li>
+                    }
+                    else if (role == "EMPLOYEE")
+                    {
+                        <li class="nav-item"><a class="nav-link" href="@Url.Action("Index","Employee")">Home</a></li>
+                        <li class="nav-item"><a class="nav-link" href="@Url.Action("Dashboard","SavingEmployee")">Savings Desk</a></li>
+                        <li class="nav-item"><a class="nav-link" href="@Url.Action("Dashboard","LoanEmployee")">Loan Desk</a></li>
+                    }
+                    else if (role == "MANAGER")
+                    {
+                        <li class="nav-item"><a class="nav-link" href="@Url.Action("Dashboard","Manager")">Home</a></li>
+                        <li class="nav-item"><a class="nav-link" href="@Url.Action("OpenAccount","Manager")">Open Account</a></li>
+                        <li class="nav-item"><a class="nav-link" href="@Url.Action("ViewAccounts","Manager")">View Accounts</a></li>
+                        <li class="nav-item"><a class="nav-link" href="@Url.Action("PendingRequests","Manager")">Pending</a></li>
+                    }
+                </ul>
+                <div class="d-flex align-items-center text-white">
+                    <div class="me-3 text-end">
+                        <div><strong>@userName</strong></div>
+                        <div class="small">
+                            @userId
+                            @if (!string.IsNullOrWhiteSpace(role)) { @Html.Raw("&nbsp;&bull;&nbsp;"); @role }
+                        </div>
+                    </div>
+                    @using (Html.BeginForm("Logout", "Auth", FormMethod.Post, new { @class = "m-0" }))
+                    {
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-outline-light btn-sm">Logout</button>
+                    }
                 </div>
-                @using (Html.BeginForm("Logout", "Auth", FormMethod.Post, new { @class = "m-0" }))
-                {
-                    @Html.AntiForgeryToken()
-                    <button type="submit" class="btn btn-outline-light btn-sm">Logout</button>
-                }
             </div>
         </div>
     </nav>

@@ -149,25 +149,34 @@ namespace MVCBank.Controllers
                         return RedirectToAction("OpenAccount");
                     }
 
-                    var existing = db.SavingsAccounts.FirstOrDefault(a => a.CustomerID == userId && a.Status=="Active");
-                    if (existing != null)
+                    // Block if any non-closed savings account exists for the customer
+                    var hasOpenOrPending = db.SavingsAccounts.Any(a => a.CustomerID == userId && ((a.Status ?? "").ToLower() != "closed"));
+                    if (hasOpenOrPending)
                     {
-                        TempData["Message"] = "You already have a savings account (active or pending).";
+                        TempData["Message"] = "You already have a savings account (Active or Pending).";
                         return RedirectToAction("Dashboard");
                     }
 
-                    var account = new SavingsAccount
-                    {
-                        CustomerID = userId,
-                        Balance = initial,
-                        Status = "Pending",
-                        CreatedAt = DateTime.Now
+                    // Insert via raw SQL so DB can generate SBAccountID
+                    var insertSql = @"INSERT INTO dbo.SavingsAccount (CustomerID, Balance, Status, CreatedAt)
+                                       VALUES (@CustomerID, @Balance, @Status, @CreatedAt)";
+                    var p = new[] {
+                        new SqlParameter("@CustomerID", userId ?? (object)DBNull.Value),
+                        new SqlParameter("@Balance", initial),
+                        new SqlParameter("@Status", "Pending"),
+                        new SqlParameter("@CreatedAt", DateTime.Now)
                     };
+                    db.Database.ExecuteSqlCommand(insertSql, p);
 
-                    db.SavingsAccounts.Add(account);
-                    db.SaveChanges();
+                    // Fetch created account (by latest CreatedAt for this user)
+                    var created = db.SavingsAccounts
+                                    .Where(a => a.CustomerID == userId)
+                                    .OrderByDescending(a => a.SBNum)
+                                    .FirstOrDefault();
 
-                    TempData["Message"] = "Savings account created and pending activation.";
+                    TempData["Message"] = created != null
+                        ? ($"Savings account request submitted. Account ID: {created.SBAccountID}. Pending activation.")
+                        : "Savings account request submitted and pending activation.";
                     return RedirectToAction("Dashboard");
                 }
 
@@ -183,21 +192,36 @@ namespace MVCBank.Controllers
                         TempData["Message"] = "Minimum FD deposit is 10000.";
                         return RedirectToAction("OpenAccount");
                     }
-
-                    var fd = new FixedDepositAccount
+                    if (months <= 0)
                     {
-                        CustomerID = userId,
-                        StartDate = DateTime.Now.Date,
-                        EndDate = DateTime.Now.Date.AddMonths(months),
-                        DepositAmount = amount,
-                        FDROI = roi,
-                        Status = "Active" // create FD as Active by default (no manager approval)
-                    };
+                        TempData["Message"] = "Duration must be at least 1 month.";
+                        return RedirectToAction("OpenAccount");
+                    }
 
-                    db.FixedDepositAccounts.Add(fd);
-                    db.SaveChanges();
+                    var fdStart = DateTime.Now.Date;
+                    var fdEnd = fdStart.AddMonths(months);
 
-                    TempData["Message"] = "Fixed deposit created and activated.";
+                    // Insert via raw SQL so DB can generate FDAccountID
+                    var insertFd = @"INSERT INTO dbo.FixedDepositAccount (CustomerID, StartDate, EndDate, DepositAmount, FDROI, Status)
+                                     VALUES (@CustomerID, @StartDate, @EndDate, @DepositAmount, @FDROI, @Status)";
+                    db.Database.ExecuteSqlCommand(insertFd,
+                        new SqlParameter("@CustomerID", userId ?? (object)DBNull.Value),
+                        new SqlParameter("@StartDate", fdStart),
+                        new SqlParameter("@EndDate", fdEnd),
+                        new SqlParameter("@DepositAmount", amount),
+                        new SqlParameter("@FDROI", roi),
+                        new SqlParameter("@Status", "Active")
+                    );
+
+                    // Fetch the newly created FD account
+                    var createdFd = db.FixedDepositAccounts
+                                      .Where(f => f.CustomerID == userId && f.StartDate == fdStart && f.DepositAmount == amount)
+                                      .OrderByDescending(f => f.FDNum)
+                                      .FirstOrDefault();
+
+                    TempData["Message"] = createdFd != null
+                        ? ($"Fixed deposit created and activated. FD Account ID: {createdFd.FDAccountID}.")
+                        : "Fixed deposit created and activated.";
                     return RedirectToAction("Dashboard");
                 }
 
@@ -345,26 +369,34 @@ namespace MVCBank.Controllers
 
             try
             {
-                var existing = db.SavingsAccounts.FirstOrDefault(a => a.CustomerID == userId);
-                if (existing != null)
+                // Block only if there is an existing non-closed savings account
+                var hasOpenOrPending = db.SavingsAccounts.Any(a => a.CustomerID == userId && ((a.Status ?? "").ToLower() != "closed"));
+                if (hasOpenOrPending)
                 {
-                    ModelState.AddModelError("", "You already have a savings account.");
-                    ViewBag.ErrorMessage = "You already have a savings account.";
+                    ModelState.AddModelError("", "You already have a savings account (Active or Pending).");
+                    ViewBag.ErrorMessage = "You already have a savings account (Active or Pending).";
                     return View();
                 }
 
-                var account = new SavingsAccount
-                {
-                    CustomerID = userId,
-                    Balance = initial,
-                    Status = "Pending",
-                    CreatedAt = DateTime.Now
-                };
+                // Insert via raw SQL so DB generates SBAccountID
+                var insertSql = @"INSERT INTO dbo.SavingsAccount (CustomerID, Balance, Status, CreatedAt)
+                                   VALUES (@CustomerID, @Balance, @Status, @CreatedAt)";
+                db.Database.ExecuteSqlCommand(insertSql,
+                    new SqlParameter("@CustomerID", userId),
+                    new SqlParameter("@Balance", initial),
+                    new SqlParameter("@Status", "Pending"),
+                    new SqlParameter("@CreatedAt", DateTime.Now)
+                );
 
-                db.SavingsAccounts.Add(account);
-                db.SaveChanges();
+                // Fetch the created account id (optional, for message)
+                var created = db.SavingsAccounts
+                                .Where(a => a.CustomerID == userId)
+                                .OrderByDescending(a => a.SBNum)
+                                .FirstOrDefault();
 
-                TempData["Message"] = "Savings account request submitted and pending approval.";
+                TempData["Message"] = created != null
+                    ? ($"Savings account request submitted and pending approval. Account ID: {created.SBAccountID}.")
+                    : "Savings account request submitted and pending approval.";
                 return RedirectToAction("Dashboard");
             }
             catch (Exception ex)
